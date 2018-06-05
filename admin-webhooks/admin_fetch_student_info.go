@@ -14,7 +14,6 @@ import (
 
 // This is for the Slack slash command: /student <email address>
 
-var SpreadsheetId = "1wRHucYoRuGzHav7nK3V5Hv2Z4J67D_vTZN5wjw8aa2k"
 var RespondToErrorInChannel = true
 var RespondToMessageInChannel = true
 

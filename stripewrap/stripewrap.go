@@ -12,6 +12,7 @@ import (
 	"github.com/stripe/stripe-go/card"
 	"github.com/stripe/stripe-go/charge"
 	"github.com/stripe/stripe-go/customer"
+	"github.com/stripe/stripe-go/sub"
 
 	"github.com/gosexy/to"
 	"github.com/gosexy/yaml"
@@ -36,6 +37,16 @@ func GetApiKey() (string, string) {
 func SetApiKey() {
 	_, secretKey := GetApiKey()
 	stripe.Key = secretKey
+}
+
+func SubscriptionIdLooksValid(subId string) bool {
+	if len(subId) < 1 {
+		return false
+	}
+	if !strings.HasPrefix(subId, "sub_") {
+		return false
+	}
+	return true
 }
 
 func CustomerIdLooksValid(customerId string) bool {
@@ -151,6 +162,19 @@ func SaveNewDefaultCard(customerId string, tokenId string) error {
 	customerParams := &stripe.CustomerParams{}
 	customerParams.SetSource(tokenId)
 	_, err := customer.Update(customerId, customerParams)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func CancelSubscription(subId string, atPeriodEnd bool) error {
+	SetApiKey()
+	stripe.LogLevel = 0 // don't print to log
+	subParams := &stripe.SubParams{
+		EndCancel: atPeriodEnd,
+	}
+	_, err := sub.Cancel(subId, subParams)
 	if err != nil {
 		return err
 	}

@@ -70,7 +70,10 @@ type SjStudentStatus struct {
 type _SjStudentStatus SjStudentStatus
 
 var StripeAccountActiveStatuses = []string{"active", "trialing", "unpaid"} // rest are inactive
+// These are what stripe uses:
 var AccountStatuses = [5]string{"active", "past_due", "canceling", "canceled", "unknown"}
+
+// These are what we use mapped to human strings:
 var AccountStatusesHuman = map[string]string{
 	"active":         "Active",
 	"past_due":       "Overdue",

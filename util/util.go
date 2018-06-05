@@ -16,10 +16,15 @@ var SlackChannel = "#teachable-alerts"
 var SlackNotifyErrorPrefix = "`Error:` "
 
 // Data types
+type WebhookEventOptions struct {
+	IsSilent bool
+}
+
 type WebhookEvent struct {
-	Name   string
-	Header []byte
-	Data   []byte
+	Name    string
+	Header  []byte
+	Data    []byte
+	Options WebhookEventOptions
 }
 
 // Functions
@@ -44,24 +49,39 @@ func GetWebhookName(programName string) string {
 
 // Report failure to slack channel and email
 func ReportWebhookFailure(w *WebhookEvent, errorMessage string) {
-	log.Printf("%s webhook failed: %s\n", w.Name, errorMessage)
 	message := fmt.Sprintf("Webhook *%s* failed: %s", w.Name, errorMessage)
-	slackwrap.PostMessage(SlackChannel, SlackNotifyErrorPrefix+message)
+	if !w.Options.IsSilent {
+		log.Println(message)
+		slackwrap.PostMessage(SlackChannel, SlackNotifyErrorPrefix+message)
+	} else {
+		slackwrap.PostMessageSilent(SlackChannel, SlackNotifyErrorPrefix+message)
+	}
+	// TODO add email error reporting
 	//email.SendMessage(EmailNotifyErrorTo, EmailNotifyErrorSubject, message)
 }
 
 // Report success to slack channel
 func ReportWebhookSuccess(w *WebhookEvent, successMessage string) {
-	log.Printf("%s webhook ran successfully: %s\n", w.Name, successMessage)
 	message := fmt.Sprintf("Webhook *%s* ran successfully: %s", w.Name, successMessage)
-	slackwrap.PostMessage(SlackChannel, message)
+	if !w.Options.IsSilent {
+		log.Println(message)
+		slackwrap.PostMessage(SlackChannel, message)
+	} else {
+		slackwrap.PostMessageSilent(SlackChannel, message)
+	}
 }
 
-// Report success to slack channel
+// Report success to slack channel only
+/*
 func ReportSlackWebhookSuccess(w *WebhookEvent, successMessage string) {
 	message := fmt.Sprintf("Webhook *%s* ran successfully: %s", w.Name, successMessage)
-	slackwrap.PostMessage(SlackChannel, message)
+	if !w.Options.IsSilent {
+		slackwrap.PostMessage(SlackChannel, message)
+	} else {
+		slackwrap.PostMessageSilent(SlackChannel, message)
+	}
 }
+*/
 
 func RecordWebhookStarted(w *WebhookEvent) {
 	log.Printf("Running webhook \"%s\"\n\tHeader: %s\n\tData: %s\n", w.Name, w.Header, w.Data)

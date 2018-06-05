@@ -92,7 +92,7 @@ func GetCommandTokens() map[string]string {
 }
 
 // Post an in-channel message as the test API bot
-func PostMessage(channelId string, message string) {
+func PostMessageSilent(channelId string, message string) (string, error) {
 	apiToken := GetApiToken()
 
 	api := slack.New(apiToken)
@@ -103,11 +103,19 @@ func PostMessage(channelId string, message string) {
 		Parse:     "full",
 	}
 	channelPostedId, timestamp, err := api.PostMessage(channelId, message, params)
+	_ = channelPostedId
 	if err != nil {
 		log.Fatalln(err)
 	}
+	return timestamp, err
+}
+
+// Post an in-channel message as the test API bot
+func PostMessage(channelId string, message string) {
+	// TODO handle errors
+	timestamp, _ := PostMessageSilent(channelId, message)
 	//log.Printf("Slack message successfully sent to channel %s at %s\n", channelID, timestamp)
-	log.Printf("Slack message successfully sent to channel %s at %s\n", channelPostedId, timestamp)
+	log.Printf("Slack message successfully sent to channel %s at %s\n", channelId, timestamp)
 }
 
 // When responding to a slash command
