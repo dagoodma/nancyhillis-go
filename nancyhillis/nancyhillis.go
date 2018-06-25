@@ -9,12 +9,15 @@ import (
 	"bitbucket.org/dagoodma/nancyhillis-go/gsheetwrap"
 	"bitbucket.org/dagoodma/nancyhillis-go/stripewrap"
 	"bitbucket.org/dagoodma/nancyhillis-go/util"
+	"github.com/stripe/stripe-go"
 	"gopkg.in/Iwark/spreadsheet.v2"
 )
 
 // Spreadsheet constants
 var SjEnrollmentSpreadsheetId = "1wRHucYoRuGzHav7nK3V5Hv2Z4J67D_vTZN5wjw8aa2k"
-var SjEnrollmentSpreadsheetStripeIdRow = 13
+var SjFounderMigratedSpreadsheetId = "13xE8UGR03CBEjB0othGm4abv8vDi_d8wD7U1FF2BWUg"
+var SjEnrollmentSpreadsheetStripeIdCol = 13
+var SjFounderMigratedSpreadsheetEmailCol = 2
 
 // Cancel after overdue grace period ends (as set in Stripe dashboard)
 // TODO Load this from Stripe dashboard settings?
@@ -91,7 +94,7 @@ func GetSjEnrollmentRowByEmail(email string) ([]spreadsheet.Cell, error) {
 		//log.Printf("Error while searching spreadsheet (%s) for '%s'. %v", SpreadsheetId, emailAddress, err)
 		return nil, errors.New(msg)
 	}
-	if row == nil || len(row) < 14 {
+	if row == nil || len(row) < (SjEnrollmentSpreadsheetStripeIdCol+1) {
 		msg := fmt.Sprintf("Failed to find email address: %s", email)
 		//log.Printf("Failed to find row in spreadsheet (%s) with '%s'", SpreadsheetId, emailAddress)
 		return nil, errors.New(msg)
@@ -104,8 +107,23 @@ func GetSjStripeIdByEmail(email string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	stripeCustomerId := row[SjEnrollmentSpreadsheetStripeIdRow].Value
+	stripeCustomerId := row[SjEnrollmentSpreadsheetStripeIdCol].Value
 	return stripeCustomerId, nil
+}
+
+// Find founder by email address in migrated spreadsheet
+func GetSjFounderMigratedByEmail(email string) (bool, error) {
+	row, err := gsheetwrap.SearchForSingleRowWithValue(SjFounderMigratedSpreadsheetId, email)
+	if err != nil {
+		msg := fmt.Sprintf("Error searching for founder email address '%s': %v", email, err)
+		return false, errors.New(msg)
+	}
+	if row == nil || len(row) < (SjFounderMigratedSpreadsheetEmailCol+1) ||
+		!strings.EqualFold(row[SjFounderMigratedSpreadsheetEmailCol].Value, email) {
+		msg := fmt.Sprintf("Failed to find founder email address: %s", email)
+		return false, errors.New(msg)
+	}
+	return true, nil
 }
 
 func GetSjAccountStatus(stripeId string) (*SjStudentStatus, error) {
@@ -137,8 +155,8 @@ func GetSjAccountStatus(stripeId string) (*SjStudentStatus, error) {
 	// Start building response
 	status := &SjStudentStatus{
 		Email:         cust.Email,
-		FirstName:     cust.Meta["first_name"],
-		LastName:      cust.Meta["last_name"],
+		FirstName:     cust.Metadata["first_name"],
+		LastName:      cust.Metadata["last_name"],
 		IsDelinquent:  cust.Delinquent,
 		CustomerId:    stripeId,
 		NextBillHuman: "N/A",
@@ -151,27 +169,47 @@ func GetSjAccountStatus(stripeId string) (*SjStudentStatus, error) {
 			msg := fmt.Sprintf("Failed retrieving customer card data. %v", err)
 			return nil, errors.New(msg)
 		}
-		status.DefaultCardLastFour = c2.LastFour
+		status.DefaultCardLastFour = c2.Last4
 		status.DefaultCardBrand = string(c2.Brand)
 	}
-	if len(cust.BusinessVatID) > 0 {
-		status.BusinessVatId = cust.BusinessVatID
+	if len(cust.BusinessVATID) > 0 {
+		status.BusinessVatId = cust.BusinessVATID
 	}
 
+	// Get stripe canceled subscriptions
+	sc, scErr := stripewrap.GetLastCanceledSubWithPrefix(stripeId, "sj-")
+	// Check this below if there's no active subscriptions
+
 	// Get stripe subscriptions
-	if len(cust.Subs.Values) > 1 {
+	if len(cust.Subscriptions.Data) > 1 {
 		msg := fmt.Sprintf("Found mulitple subscriptions for '%s'", cust.Email)
 		return nil, errors.New(msg)
 	}
-	if len(cust.Subs.Values) == 1 {
+	/*
+		// Check if canceled subs exist
+		if sc != nil && scErr == nil {
+			msg := fmt.Sprintf("Found a canceled Studio Journey subscription for '%s'. Please contact us to reinstate your subscription.", cust.Email)
+			return nil, errors.New(msg)
+		}
+	*/
+
+	if len(cust.Subscriptions.Data) == 1 || (sc != nil && scErr == nil) {
 		// TODO Add support for payment plan here
-		sub := cust.Subs.Values[0]
+		var sub *stripe.Subscription = nil
+		if len(cust.Subscriptions.Data) > 0 {
+			sub = cust.Subscriptions.Data[0]
+		} else if sc != nil {
+			sub = sc
+		} else {
+			msg := fmt.Sprintf("Found a Studio Journey subscription for '%s', but encountered an error analyzing it.", cust.Email)
+			return nil, errors.New(msg)
+		}
 		status.IsRecurring = true
 		status.Created = sub.Created
 		status.Start = sub.Start
-		status.Ended = sub.Ended
-		status.Canceled = sub.Canceled
-		status.CancelAtEndOfPeriod = sub.EndCancel
+		status.Ended = sub.EndedAt
+		status.Canceled = sub.CanceledAt
+		status.CancelAtEndOfPeriod = sub.CancelAtPeriodEnd
 		status.TrialStart = sub.TrialStart
 		status.TrialEnd = sub.TrialEnd
 		if sub.TrialStart > 0 {
@@ -185,25 +223,26 @@ func GetSjAccountStatus(stripeId string) (*SjStudentStatus, error) {
 				status.TrialDaysLeft = uint64(util.RoundDown(dd.Hours() / 24))
 			}
 		}
-		status.PeriodStart = sub.PeriodStart
-		status.PeriodEnd = sub.PeriodEnd
+		status.PeriodStart = sub.CurrentPeriodStart
+		status.PeriodEnd = sub.CurrentPeriodEnd
 		// Calculate days until period end
-		et := time.Unix(sub.PeriodEnd, 0)
+		et := time.Unix(sub.CurrentPeriodEnd, 0)
 		ct := time.Now()
 		dt := et.Sub(ct)
 		status.DaysUntilEndOfPeriod = uint64(util.RoundDown(dt.Hours() / 24))
 		// Billing interval and anchor
 		status.BillingInterval = string(sub.Plan.Interval)
-		status.BillingIntervalCount = sub.Plan.IntervalCount
+		status.BillingIntervalCount = uint64(sub.Plan.IntervalCount)
 		status.BillingCycleAnchor = sub.BillingCycleAnchor
 		billingCycleTime := time.Unix(sub.BillingCycleAnchor, 0)
 		status.BillingCycleAnchorHuman = billingCycleTime.Format("Mon Jan 2 15:04 2006")
-		if sub.Billing == "charge_automatically" && status.Canceled == 0 && !status.CancelAtEndOfPeriod {
+		if sub.Billing == "charge_automatically" && status.Canceled == 0 &&
+			!status.CancelAtEndOfPeriod {
 			status.DaysUntilDue = status.DaysUntilEndOfPeriod
 			status.NextBillHuman = et.Format("Jan 2")
 		} else {
 			// Manual invoice
-			status.DaysUntilDue = sub.DaysUntilDue
+			status.DaysUntilDue = uint64(sub.DaysUntilDue)
 			status.NextBillHuman = "Manual"
 		}
 		// Figure out status of subscription
@@ -216,7 +255,7 @@ func GetSjAccountStatus(stripeId string) (*SjStudentStatus, error) {
 			status.Status = "past_due"
 			// Calculate grace period days
 			status.IsOverdue = true
-			st := time.Unix(sub.PeriodStart, 0)
+			st := time.Unix(sub.CurrentPeriodStart, 0)
 			gs := fmt.Sprintf("%dh", uint64(24*OverdueGracePeriodDays))
 			gd, err := time.ParseDuration(gs)
 			if err == nil {
@@ -233,13 +272,13 @@ func GetSjAccountStatus(stripeId string) (*SjStudentStatus, error) {
 		}
 		status.StatusHuman = AccountStatusesHuman[status.Status]
 		// Get plan info
-		status.RecurringPrice = sub.Plan.Amount
+		status.RecurringPrice = uint64(sub.Plan.Amount)
 		status.Plan = sub.Plan.ID
 		status.PlanHuman = sub.Plan.Nickname
 		status.IsFounder = IsFounderPlan(sub.Plan.ID)
+		// if len(cust.Subscriptions.Data) == 1 {
 	} else {
 		// Must be a package plan
-		//l := stripewrap.GetChargeList(stripeId)
 		ch, err := stripewrap.GetLastChargeWithPrefix(stripeId, "Studio Journey")
 		if err != nil || ch == nil {
 			msg := fmt.Sprintf("Failed to find active subscriptions or charges for '%s'. %v", cust.Email, err)
@@ -247,8 +286,8 @@ func GetSjAccountStatus(stripeId string) (*SjStudentStatus, error) {
 		}
 		status.IsPackage = true
 		status.IsRefunded = ch.Refunded
-		status.PlanHuman = ch.Desc
-		status.IsFounder = IsFounderPlan(ch.Desc)
+		status.PlanHuman = ch.Description
+		status.IsFounder = IsFounderPlan(ch.Description)
 		status.Created = ch.Created
 		status.Start = ch.Created
 		if ch.Paid || ch.Status != "failed" {

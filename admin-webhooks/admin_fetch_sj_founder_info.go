@@ -6,17 +6,21 @@ import (
 	"log"
 	"os"
 
-	"bitbucket.org/dagoodma/nancyhillis-go/nancyhillis"
+	"bitbucket.org/dagoodma/nancyhillis-go/membermouse"
 	"bitbucket.org/dagoodma/nancyhillis-go/util"
 )
+
+// This is for the Slack slash command: /student <email address>
 
 var Debug = false          // supress extra messages if false
 var WebhookIsSilent = true // don't print anything since we return JSON
 
 // Json object to hold the result
 type StatusResult struct {
-	Result *nancyhillis.SjStudentStatus `json:"result,string"`
+	Result *membermouse.MemberStatus `json:"result,string"`
 }
+
+//var LoggedInUserSecretKey = "RBxEi2rt4Skd4TgKytdusBbdp4A4wtbvH"
 
 // Note that we will be using our own customer error handler: HandleError()
 func main() {
@@ -55,19 +59,17 @@ func main() {
 		return
 	}
 
-	// Find Stripe customer ID in spreadsheet
-	stripeId, err := nancyhillis.GetSjStripeIdByEmail(email)
+	// Find founder by email in membermouse
+	m2, err := membermouse.GetMemberByEmail(email)
 	if err != nil {
-		HandleError(w, "%v", err)
+		HandleError(w, "Failed to find founder with email \"%s\". %v", email, err.Error())
 		return
 	}
 
-	// Get SJ account status
-	// TODO support other courses
-	status, err := nancyhillis.GetSjAccountStatus(stripeId)
-	_ = status
+	// Get their member status info
+	status, err := m2.GetStatus()
 	if err != nil {
-		HandleError(w, err.Error())
+		HandleError(w, "Failed fetching member status. %v", err.Error())
 		return
 	}
 

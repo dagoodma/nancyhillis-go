@@ -117,7 +117,7 @@ func main() {
 	// Report to slack
 	message := fmt.Sprintf("Customer \"%s\" (%s) updated their default credit card.",
 		customerId, cust.Email)
-	util.ReportSlackWebhookSuccess(w, message)
+	util.ReportWebhookSuccess(w, message)
 	return
 }
 

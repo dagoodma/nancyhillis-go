@@ -119,7 +119,7 @@ func main() {
 
 	// Report to slack
 	message := fmt.Sprintf("Customer \"%s\" (%s) subscription was canceled by: %s",
-		customerId, status.Email, reason)
+		status.Email, customerId, reason)
 	util.ReportWebhookSuccess(w, message)
 	return
 }
