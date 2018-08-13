@@ -75,23 +75,26 @@ func main() {
 		HandleError(w, "Failed fetching member status. %v", err.Error())
 		return
 	}
-	status.IsMigrated = false // We will set this if they're in the spreadsheet
+	// Let's only use MM api for now (Faster and easier to test)
+	/*
+		status.IsMigrated = false // We will set this if they're in the spreadsheet
 
-	// Find founder by email address in migrated spreadsheet
-	isMigrated, err := nancyhillis.GetSjFounderMigratedByEmail(email)
-	if err != nil {
-		// Not migrated...
-		if Debug {
-			log.Printf("Not migrated. Failed to find in spreadsheet. %v\n", err)
+		// Find founder by email address in migrated spreadsheet
+		isMigrated, err := nancyhillis.GetSjFounderMigratedByEmail(email)
+		if err != nil {
+			// Not migrated...
+			if Debug {
+				log.Printf("Not migrated. Failed to find in spreadsheet. %v\n", err)
+			}
+		} else {
+			status.IsMigrated = isMigrated
 		}
-	} else {
-		status.IsMigrated = isMigrated
-	}
+	*/
 
 	// Check if they signed up as a regular member
 	row, err := nancyhillis.GetSjEnrollmentRowByEmail(email)
 	if err == nil && row != nil {
-		if !isMigrated {
+		if !status.IsMigrated {
 			// We found them as already signed up
 			// Uh-oh! They already enrolled as a regular member
 			var msg = "already signed up as a regular SJ member!"
