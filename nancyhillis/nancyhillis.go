@@ -192,8 +192,14 @@ func GetSjAccountStatus(stripeId string) (*SjStudentStatus, error) {
 			return nil, errors.New(msg)
 		}
 	*/
+	// First check if they have a package plan charge
+	// Which has a description on the payment/charge, unlike subscription charges
+	ch, chErr := stripewrap.GetLastChargeWithPrefix(stripeId, "Studio Journey")
 
-	if len(cust.Subscriptions.Data) == 1 || (sc != nil && scErr == nil) {
+	// Only proceed if they have an active or canceled subscription, and
+	// they don't have a package charge AND a cancelled subscription.
+	// Otherwise we will treat them as a package plan subscriber.
+	if len(cust.Subscriptions.Data) == 1 || (sc != nil && scErr == nil && ch == nil) {
 		// TODO Add support for payment plan here
 		var sub *stripe.Subscription = nil
 		if len(cust.Subscriptions.Data) > 0 {
@@ -279,9 +285,8 @@ func GetSjAccountStatus(stripeId string) (*SjStudentStatus, error) {
 		// if len(cust.Subscriptions.Data) == 1 {
 	} else {
 		// Must be a package plan
-		ch, err := stripewrap.GetLastChargeWithPrefix(stripeId, "Studio Journey")
-		if err != nil || ch == nil {
-			msg := fmt.Sprintf("Failed to find active subscriptions or charges for '%s'. %v", cust.Email, err)
+		if chErr != nil || ch == nil {
+			msg := fmt.Sprintf("Failed to find active subscriptions or charges for '%s'. %v", cust.Email, chErr)
 			return nil, errors.New(msg)
 		}
 		status.IsPackage = true
