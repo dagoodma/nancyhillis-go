@@ -22,6 +22,8 @@ import (
 /* Gsheet settings */
 var SecretsFilePath = "/var/webhook/secrets/gsheet_client_secrets.json"
 
+var ErrorOnMultipleMatches = false
+
 func SearchForSingleRowWithValue(spreadsheetId string, myValue string) ([]spreadsheet.Cell, error) {
 	data, err := ioutil.ReadFile(SecretsFilePath)
 	if err != nil {
@@ -51,11 +53,13 @@ func SearchForSingleRowWithValue(spreadsheetId string, myValue string) ([]spread
 	for _, row := range sheet.Rows {
 		for _, cell := range row {
 			if strings.EqualFold(cell.Value, myValue) {
-				if r != nil {
-					err := errors.New("Found multiple matches")
-					return nil, err
+				if ErrorOnMultipleMatches {
+					if r != nil {
+						err := errors.New("Found multiple matches")
+						return nil, err
+					}
 				}
-				//p = &row
+				// Otherwise keep going and just get the last match (highest row/col)
 				copier.Copy(&r, &row)
 				//fmt.Println("Found row: %v", row)
 				//return row, nil
