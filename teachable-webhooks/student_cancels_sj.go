@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"teachable"
 	//"time"
 	//"github.com/gosexy/to"
-	"util"
+
+	"bitbucket.org/dagoodma/nancyhillis-go/teachable"
+	"bitbucket.org/dagoodma/nancyhillis-go/util"
 )
 
 func main() {

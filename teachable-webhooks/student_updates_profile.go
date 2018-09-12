@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"teachable"
-	"util"
+
+	"bitbucket.org/dagoodma/nancyhillis-go/teachable"
+	"bitbucket.org/dagoodma/nancyhillis-go/util"
 )
 
 var AddUnsubscribeTags = []string{"DO_NOT_DISTURB"}
@@ -86,7 +87,8 @@ func main() {
 
 	// Check for unsubscribe tag wanted
 	if m.Object.UnsubscribeFromMarketingEmails {
-		message := fmt.Sprintf("Student \"%s\" (%s) prefers not to receive marketing emails.", name, id)
+		message := fmt.Sprintf("Student %s (name: \"%s\", id: %s) prefers not to receive marketing emails.",
+			email, name, id)
 		log.Println(message)
 		// Notify slack if they updated
 		util.ReportWebhookSuccess(w, message)

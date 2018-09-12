@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"teachable"
-	"util"
+
+	"bitbucket.org/dagoodma/nancyhillis-go/teachable"
+	"bitbucket.org/dagoodma/nancyhillis-go/util"
 )
 
 func main() {
