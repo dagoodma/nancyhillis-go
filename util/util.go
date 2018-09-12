@@ -12,12 +12,13 @@ import (
 )
 
 /* Util settings */
-var SlackChannel = "#teachable-alerts"
+//var SlackChannel = "#teachable-alerts"
 var SlackNotifyErrorPrefix = "`Error:` "
 
 // Data types
 type WebhookEventOptions struct {
-	IsSilent bool
+	IsSilent           bool
+	SlackAlertsChannel string
 }
 
 type WebhookEvent struct {
@@ -33,6 +34,7 @@ func NewWebhookEvent(programName string, header []byte, data []byte) *WebhookEve
 	w.Name = GetWebhookName(programName)
 	w.Header = header
 	w.Data = data
+	w.Options.SlackAlertsChannel = slackwrap.GetAlertsChannel()
 	return w
 }
 
@@ -52,9 +54,9 @@ func ReportWebhookFailure(w *WebhookEvent, errorMessage string) {
 	message := fmt.Sprintf("Webhook *%s* failed: %s", w.Name, errorMessage)
 	if !w.Options.IsSilent {
 		log.Println(message)
-		slackwrap.PostMessage(SlackChannel, SlackNotifyErrorPrefix+message)
+		slackwrap.PostMessage(w.Options.SlackAlertsChannel, SlackNotifyErrorPrefix+message)
 	} else {
-		slackwrap.PostMessageSilent(SlackChannel, SlackNotifyErrorPrefix+message)
+		slackwrap.PostMessageSilent(w.Options.SlackAlertsChannel, SlackNotifyErrorPrefix+message)
 	}
 	// TODO add email error reporting
 	//email.SendMessage(EmailNotifyErrorTo, EmailNotifyErrorSubject, message)
@@ -65,9 +67,9 @@ func ReportWebhookSuccess(w *WebhookEvent, successMessage string) {
 	message := fmt.Sprintf("Webhook *%s* ran successfully: %s", w.Name, successMessage)
 	if !w.Options.IsSilent {
 		log.Println(message)
-		slackwrap.PostMessage(SlackChannel, message)
+		slackwrap.PostMessage(w.Options.SlackAlertsChannel, message)
 	} else {
-		slackwrap.PostMessageSilent(SlackChannel, message)
+		slackwrap.PostMessageSilent(w.Options.SlackAlertsChannel, message)
 	}
 }
 
@@ -76,9 +78,9 @@ func ReportWebhookSuccess(w *WebhookEvent, successMessage string) {
 func ReportSlackWebhookSuccess(w *WebhookEvent, successMessage string) {
 	message := fmt.Sprintf("Webhook *%s* ran successfully: %s", w.Name, successMessage)
 	if !w.Options.IsSilent {
-		slackwrap.PostMessage(SlackChannel, message)
+		slackwrap.PostMessage(w.Options.SlackAlertsChannel, message)
 	} else {
-		slackwrap.PostMessageSilent(SlackChannel, message)
+		slackwrap.PostMessageSilent(w.Options.SlackAlertsChannel, message)
 	}
 }
 */
@@ -91,7 +93,8 @@ func RecordWebhookStarted(w *WebhookEvent) {
 func ReportServiceFailure(serviceName string, errorMessage string) {
 	log.Printf("%s service failed: %s\n", serviceName, errorMessage)
 	message := fmt.Sprintf("Backend service *%s* failed: %s", serviceName, errorMessage)
-	slackwrap.PostMessage(SlackChannel, SlackNotifyErrorPrefix+message)
+	slackAlertsChannel := slackwrap.GetAlertsChannel()
+	slackwrap.PostMessage(slackAlertsChannel, SlackNotifyErrorPrefix+message)
 }
 
 // These are for services (command line) instead of webhooks with headers and data
@@ -99,7 +102,8 @@ func ReportServiceFailure(serviceName string, errorMessage string) {
 func ReportServiceSuccess(serviceName string, successMessage string) {
 	log.Printf("%s service ran successfully: %s\n", serviceName, successMessage)
 	message := fmt.Sprintf("Backend service *%s* ran successfully: %s", serviceName, successMessage)
-	slackwrap.PostMessage(SlackChannel, message)
+	slackAlertsChannel := slackwrap.GetAlertsChannel()
+	slackwrap.PostMessage(slackAlertsChannel, message)
 }
 
 func RecordServiceStarted(serviceName string, header []byte, data []byte) {

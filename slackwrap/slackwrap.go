@@ -46,6 +46,19 @@ type SlackErrorResponse struct {
 	ResponseType string `json:"response_type"`
 }
 
+// Returns the slack channel name for alerts
+func GetAlertsChannel() string {
+	secrets := yaml.New()
+	secrets, err := yaml.Open(SecretsFilePath)
+	if err != nil {
+		log.Fatalf("Could not open YAML secrets file: %s", err.Error())
+	}
+
+	alertsChannel := to.String(secrets.Get("ALERTS_CHANNEL"))
+
+	return alertsChannel
+}
+
 // Returns the secret Slack API token
 func GetApiToken() string {
 	secrets := yaml.New()
