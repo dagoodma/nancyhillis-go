@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"bitbucket.org/dagoodma/nancyhillis-go/membermouse"
 	"bitbucket.org/dagoodma/nancyhillis-go/nancyhillis"
 	"bitbucket.org/dagoodma/nancyhillis-go/util"
 )
@@ -55,7 +56,12 @@ func main() {
 	// Find Stripe customer ID in spreadsheet
 	stripeId, err := nancyhillis.GetSjStripeIdByEmail(email)
 	if err != nil {
-		HandleError("%v", err)
+		// Check if they're a founder who never migrated
+		if IsFounderNeverMigrated(email) {
+			HandleError("Your account is still in our old billing system and still needs to me moved over")
+		} else {
+			HandleError("%v", err)
+		}
 		return
 	}
 
@@ -64,6 +70,22 @@ func main() {
 	r["result"] = stripeId
 	util.PrintJsonObject(r)
 	return
+}
+
+// Check if this person is in membermouse and never migrated
+func IsFounderNeverMigrated(email string) bool {
+	// Find founder by email in membermouse
+	m, err := membermouse.GetMemberByEmail(email)
+	if err != nil {
+		return false
+	}
+
+	isMigrated := m.IsMigrated()
+	if isMigrated {
+		return false
+	}
+
+	return true
 }
 
 func HandleError(format string, args ...interface{}) {
