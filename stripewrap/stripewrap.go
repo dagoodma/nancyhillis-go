@@ -93,6 +93,15 @@ func GetCustomer(customerId string) (*stripe.Customer, error) {
 	return c, nil
 }
 
+func UnmarshallWebhookEvent(data []byte) (*stripe.Event, error) {
+	var e stripe.Event
+	var err = json.Unmarshal(data, &e)
+	if err != nil {
+		return nil, err
+	}
+	return &e, nil
+}
+
 func UnmarshallErrorResponse(response []byte) (*stripe.Error, error) {
 	var m stripe.Error
 	err := json.Unmarshal(response, &m)
