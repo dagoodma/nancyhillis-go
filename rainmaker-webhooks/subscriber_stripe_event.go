@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	//"strings"
+	"regexp"
 
 	"bitbucket.org/dagoodma/nancyhillis-go/stripewrap"
 	"bitbucket.org/dagoodma/nancyhillis-go/util"
@@ -74,6 +75,9 @@ func main() {
 	log.Println("Entire payload: " + string(data))
 
 	// Unmarshal the input data
+	// Temporary fix since the we're hacking around with old old api v2016-02-23 but
+	// Go expects v2018-09-06.
+	data = []byte(RemoveRequestField(string(data)))
 	event, err := stripewrap.UnmarshallWebhookEvent(data)
 	if err != nil {
 		HandleError(w, "Error while parsing input data for Stripe webhook event '%s'. %v", data, err)
@@ -141,22 +145,25 @@ func main() {
 		testStr = "(TEST) "
 	}
 	eventStr := EventDescriptions[event.Type]
-	var reasonStr, email, name string
-	id := event.GetObjectValue("customer")
+	var reasonStr, email, name, id, message string
 	if event.Type == "charge.succeeded" || event.Type == "charge.refunded" ||
 		event.Type == "charge.failed" {
 		reasonStr = fmt.Sprintf(" for: %s", event.Data.Object["description"])
 		email = event.GetObjectValue("receipt_email")
 		name = event.GetObjectValue("source", "name")
+		id = event.GetObjectValue("customer")
+		message = fmt.Sprintf("%sSubscriber \"%s\" (name: \"%s\", cus: %s) was %s in Stripe%s",
+			testStr, email, name, id, eventStr, reasonStr)
 	} else if event.Type == "customer.created" {
 		email = event.GetObjectValue("email")
+		id = event.GetObjectValue("id")
+		message = fmt.Sprintf("%sSubscriber \"%s\" (cus: %s) was %s in Stripe%s",
+			testStr, email, id, eventStr, reasonStr)
 	} else {
 		HandleError(w, "Unknown Stripe webhook event: %s", event.Type)
 		return
 	}
 	// Build the message for slack
-	message := fmt.Sprintf("%sSubscriber \"%s\" (name: \"%s\", cus: %s) was %s in Stripe%s",
-		testStr, email, name, id, eventStr, reasonStr)
 	util.ReportWebhookSuccess(w, message)
 	return
 }
@@ -170,4 +177,11 @@ func HandleError(w *util.WebhookEvent, format string, args ...interface{}) {
 	if w != nil {
 		util.ReportWebhookFailure(w, message)
 	}
+}
+
+// Nulls out the request field for the event (api version hack)
+func RemoveRequestField(data string) string {
+	var re = regexp.MustCompile(`"request":"req_[^\"]+"`)
+	d2 := re.ReplaceAllString(data, `"request":null`)
+	return d2
 }
