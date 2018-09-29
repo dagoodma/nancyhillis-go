@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"strings"
 
 	"bitbucket.org/dagoodma/nancyhillis-go/slackwrap"
 	"bitbucket.org/dagoodma/nancyhillis-go/util"
@@ -63,10 +64,10 @@ func main() {
 		return
 	}
 
-	url := fmt.Sprintf("%s%s", TeachableUrlPrefix,
-		url.QueryEscape(searchString))
-
-	// Get SJ account status
+	urlParts := []string{TeachableUrlPrefix,
+		url.QueryEscape(searchString)}
+	url := strings.Join(urlParts, "")
+	url = strings.Replace(url, "%", "%%", -1)
 
 	// Return result
 	msg := fmt.Sprintf("Teachable student search link for '%s':", searchString)
