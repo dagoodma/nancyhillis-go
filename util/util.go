@@ -17,8 +17,9 @@ var SlackNotifyErrorPrefix = "`Error:` "
 
 // Data types
 type WebhookEventOptions struct {
-	IsSilent           bool
-	SlackAlertsChannel string
+	IsSilent              bool
+	WantSlackSuccessAlert bool // Default: true
+	SlackAlertsChannel    string
 }
 
 type WebhookEvent struct {
@@ -35,6 +36,7 @@ func NewWebhookEvent(programName string, header []byte, data []byte) *WebhookEve
 	w.Header = header
 	w.Data = data
 	w.Options.SlackAlertsChannel = slackwrap.GetAlertsChannel()
+	w.Options.WantSlackSuccessAlert = true
 	return w
 }
 
@@ -67,9 +69,13 @@ func ReportWebhookSuccess(w *WebhookEvent, successMessage string) {
 	message := fmt.Sprintf("Webhook *%s* ran successfully: %s", w.Name, successMessage)
 	if !w.Options.IsSilent {
 		log.Println(message)
-		slackwrap.PostMessage(w.Options.SlackAlertsChannel, message)
+		if w.Options.WantSlackSuccessAlert {
+			slackwrap.PostMessage(w.Options.SlackAlertsChannel, message)
+		}
 	} else {
-		slackwrap.PostMessageSilent(w.Options.SlackAlertsChannel, message)
+		if w.Options.WantSlackSuccessAlert {
+			slackwrap.PostMessageSilent(w.Options.SlackAlertsChannel, message)
+		}
 	}
 }
 

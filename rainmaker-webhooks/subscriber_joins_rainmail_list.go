@@ -40,6 +40,10 @@ type ZapOutputData struct {
 var SecretsFilePath = "/var/webhook/secrets/rainmaker_secrets.yml"
 var ZapierUrlParentKey = "RAIN_MAIL_LIST_ZAPIER_URL"
 
+var ListsWithNoSlackAlert = []string{
+	"The Artists Journey Resource Library",
+}
+
 func GetUrlSecret(listName string) (string, error) {
 	secrets := yaml.New()
 	secrets, err := yaml.Open(SecretsFilePath)
@@ -76,7 +80,6 @@ func main() {
 	header := []byte(argsWithProg[1])
 	data := []byte(argsWithProg[2])
 	w := util.NewWebhookEvent(programName, header, data)
-	//w.Options.IsSilent = WebhookIsSilent
 	if Debug {
 		util.RecordWebhookStarted(w)
 	}
@@ -146,6 +149,12 @@ func main() {
 	}
 
 	// Report to slack
+	// If not in list
+	for _, el := range ListsWithNoSlackAlert {
+		if el == listName || strings.Replace(listName, "\\", "", -1) == el {
+			w.Options.WantSlackSuccessAlert = false
+		}
+	}
 	message := fmt.Sprintf("Subscriber \"%s\" (%s) joined a list \"%s\" and was forwarded to a Zapier webhook: %s",
 		email, id, listName, url)
 	util.ReportWebhookSuccess(w, message)

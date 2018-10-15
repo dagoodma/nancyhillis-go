@@ -104,7 +104,7 @@ func GetCommandTokens() map[string]string {
 	return commandTokens
 }
 
-// Post an in-channel message as the test API bot
+// Post an in-channel message as the test API bot without printing to log
 func PostMessageSilent(channelId string, message string) (string, error) {
 	apiToken := GetApiToken()
 
