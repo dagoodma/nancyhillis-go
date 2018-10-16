@@ -14,9 +14,12 @@ import (
 
 	"github.com/gosexy/to"
 	"github.com/gosexy/yaml"
+
+	"bitbucket.org/dagoodma/nancyhillis-go/util"
 )
 
 var UserAgent = "Nancy Hillis Studio Webhook Backend (nancyhillis.com)"
+var AdminUrlPrefix = "https://nancyhillis.activehosted.com/app"
 
 // ActiveCampaign APIv3 URL: https://<your-account>.api-us1.com/api/3/
 var UrlApiSuffix = "/api/3"
@@ -105,6 +108,10 @@ func GetContactsByEmail(email string) (*ListContacts, error) {
 		msg := fmt.Sprintf("No email given to search contacts for.")
 		return nil, errors.New(msg)
 	}
+	if !util.EmailLooksValid(email) {
+		msg := fmt.Sprintf("Invalid email given: %s", email)
+		return nil, errors.New(msg)
+	}
 
 	apiUrl, apiToken := GetApiCredentials()
 	_ = apiToken
@@ -120,7 +127,7 @@ func GetContactsByEmail(email string) (*ListContacts, error) {
 
 	url := fmt.Sprintf("%s?%s", u.String(), q.Encode())
 
-	fmt.Println("GetContacts URL:>", url)
+	//fmt.Println("GetContacts URL:>", url)
 
 	client := &http.Client{}
 	//var jsonStr = []byte(`{"events":[{"email":"dagoodma@gmail.com","action":"TEst event"}]}`)
@@ -156,7 +163,7 @@ func GetContactsByEmail(email string) (*ListContacts, error) {
 		msg := fmt.Sprintf("Got bad response status '%s', expected: %s", resp.StatusCode, 200)
 		return nil, errors.New(msg)
 	}
-	log.Println("response Body:", string(body))
+	//log.Println("response Body:", string(body))
 	data := []byte(body)
 
 	// Unmarshall the message
@@ -167,14 +174,54 @@ func GetContactsByEmail(email string) (*ListContacts, error) {
 		return nil, errors.New(msg)
 	}
 
-	log.Printf("Got %d results in contact search.", l.Metadata.Total)
+	//log.Printf("Got %d results in contact search.", l.Metadata.Total)
 
-	if l.Metadata.Total < 1 {
-		msg := fmt.Sprintf("Could not find any contacts with email: %s", email)
-		return nil, errors.New(msg)
-	}
+	/*
+		if l.Metadata.Total < 1 {
+			msg := fmt.Sprintf("Could not find any contacts with email: %s", email)
+			return nil, errors.New(msg)
+		}
+	*/
 
 	return l, nil
+}
+
+// This returns the simpler ListContactsContact instead of GetContact (for now)
+func GetContactByEmail(email string) (*ListContactsContact, error) {
+	r, err := GetContactsByEmail(email)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to get contact '%s': %s", email, err)
+		return nil, errors.New(msg)
+	}
+	if r.Metadata.Total < 1 || len(r.Contacts) < 1 {
+		msg := fmt.Sprintf("No contacts found for: %s", email)
+		return nil, errors.New(msg)
+	}
+	if r.Metadata.Total > 1 || len(r.Contacts) > 1 {
+		msg := fmt.Sprintf("Found multiple contacts for: %s", email)
+		return nil, errors.New(msg)
+	}
+	s := r.Contacts[0]
+
+	return &s, nil
+}
+
+func GetContactProfileUrlById(id string) string {
+	url := fmt.Sprintf("%s%s/%s", AdminUrlPrefix, UrlSuffixContacts, id)
+	return url
+}
+
+func GetContactProfileUrlByEmail(email string) (string, error) {
+	c, err := GetContactByEmail(email)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to get profile url: %s", err)
+		return "", errors.New(msg)
+	}
+	return GetContactProfileUrlById(c.Id), nil
+	/*
+		fmt.Printf("Here with '%s' (id=%s) and url='%s' contact: %v", email, c.Id, url, c)
+		return url, nil
+	*/
 }
 
 /*
@@ -305,12 +352,13 @@ type RetrieveContactDeal struct {
 }
 
 type RetrieveContactFieldValue struct {
-	Contact      string                         `json:"contact"`
-	Field        string                         `json:"field"`
-	Value        string                         `json:"value"`
-	CreationDate string                         `json:"cdate"`
-	UpdateDate   string                         `json:"udate"`
-	Links        RetrieveContactFieldValueLinks `json:"links"`
+	Contact      string `json:"contact"`
+	Field        string `json:"field"`
+	Value        string `json:"value"`
+	CreationDate string `json:"cdate"`
+	UpdateDate   string `json:"udate"`
+
+	Links RetrieveContactFieldValueLinks `json:"links"`
 }
 
 type RetrieveContactFieldValueLinks struct {
@@ -337,37 +385,38 @@ type ListContacts struct {
 type _ListContacts ListContacts
 
 type ListContactsContact struct {
-	CreationDate        string                  `json:"cdate"`
-	Email               string                  `json:"email"`
-	Phone               string                  `json:"phone"`
-	FirstName           string                  `json:"firstName"`
-	LastName            string                  `json:"lastName"`
-	OrganizationId      string                  `json:"orgid"`
-	SegmentIoId         string                  `json:"segmentio_id"`
-	BouncedHard         string                  `json:"bounced_hard"`
-	BouncedSoft         string                  `json:"bounced_soft"`
-	BouncedDate         string                  `json:"bounced_date"`
-	Ip                  string                  `json:"id"`
-	Ua                  string                  `json:"ua"`
-	Hash                string                  `json:"hash"`
-	SocialDateLastCheck string                  `json:"socialdata_lastcheck"`
-	EmailLocal          string                  `json:"email_local"`
-	EmailDomain         string                  `json:"email_domain"`
-	SentCount           string                  `json:"sentcnt"`
-	RatingTimestamp     string                  `json:"rating_tstamp"`
-	Gravatar            string                  `json:"gravatar"`
-	Deleted             string                  `json:"deleted"`
-	Anonymized          string                  `json:"anonymized"`
-	AddDate             string                  `json:"adate"`
-	UpdateDate          string                  `json:"udate"`
-	EditDate            string                  `json:"edate"`
-	DeletedAt           string                  `json:"deleted_at"`
-	CreatedUtcTimestamp string                  `json:"created_utc_timestamp"`
-	UpdatedUtcTimestamp string                  `json:"updated_utc_timestamp"`
-	ScoreValues         []string                `json:"scoreValues"`
-	Links               ListContactContactLinks `json:"links"`
-	Id                  string                  `json:"id"`
-	Organization        string                  `json:"organization"`
+	CreationDate        string   `json:"cdate"`
+	Email               string   `json:"email"`
+	Phone               string   `json:"phone"`
+	FirstName           string   `json:"firstName"`
+	LastName            string   `json:"lastName"`
+	OrganizationId      string   `json:"orgid"`
+	SegmentIoId         string   `json:"segmentio_id"`
+	BouncedHard         string   `json:"bounced_hard"`
+	BouncedSoft         string   `json:"bounced_soft"`
+	BouncedDate         string   `json:"bounced_date"`
+	Ip                  string   `json:"ip"`
+	Ua                  string   `json:"ua"`
+	Hash                string   `json:"hash"`
+	SocialDateLastCheck string   `json:"socialdata_lastcheck"`
+	EmailLocal          string   `json:"email_local"`
+	EmailDomain         string   `json:"email_domain"`
+	SentCount           string   `json:"sentcnt"`
+	RatingTimestamp     string   `json:"rating_tstamp"`
+	Gravatar            string   `json:"gravatar"`
+	Deleted             string   `json:"deleted"`
+	Anonymized          string   `json:"anonymized"`
+	AddDate             string   `json:"adate"`
+	UpdateDate          string   `json:"udate"`
+	EditDate            string   `json:"edate"`
+	DeletedAt           string   `json:"deleted_at"`
+	CreatedUtcTimestamp string   `json:"created_utc_timestamp"`
+	UpdatedUtcTimestamp string   `json:"updated_utc_timestamp"`
+	Id                  string   `json:"id"`
+	ScoreValues         []string `json:"scoreValues"`
+	Organization        string   `json:"organization"`
+
+	Links ListContactContactLinks `json:"links"`
 }
 
 type ListContactContactLinks struct {
