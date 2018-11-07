@@ -1,10 +1,13 @@
 package slackwrap
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"strings"
 
 	"github.com/gosexy/to"
@@ -139,6 +142,83 @@ func RespondMessage(text string, attachment string, inChannel bool) {
 	r, err := json.Marshal(response)
 	if err != nil {
 		log.Fatalf("Failed building Slack response. %v\n", err)
+		return
+	}
+
+	// Send response as HTTP response
+	fmt.Println(string(r))
+	return
+}
+
+// When responding to a slash command
+func RespondMessageToUrl(text string, attachment string, responseUrl string) (*http.Response, error) {
+	// Marshall data and return result
+	a := SlackResponseAttachment{Text: attachment}
+	response := SlackResponse{Text: text, Attachments: []SlackResponseAttachment{a}}
+	jsonStr, err := json.Marshal(response)
+	if err != nil {
+		msg := fmt.Sprintf("Failed building Slack response for url \"%s\". %v", responseUrl, err)
+		return nil, errors.New(msg)
+	}
+
+	// Build a request
+	client := &http.Client{}
+	//var jsonStr = []byte(`{"events":[{"email":"dagoodma@gmail.com","action":"TEst event"}]}`)
+	req, err := http.NewRequest("POST", responseUrl, bytes.NewBuffer(jsonStr))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	/*
+		req.Header.Set("User-Agent", UserAgent)
+		req.Header.Set("Api-Token", apiToken)
+	*/
+
+	resp, err := client.Do(req)
+	if err != nil {
+		//log.Fatalln(err)
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	//log.Println("response Status:", resp.Status)
+	//log.Println("response Headers:", resp.Header)
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		//log.Fatalln(err)
+		return nil, err
+	}
+	_ = body
+
+	if resp.StatusCode != 200 {
+		msg := fmt.Sprintf("Got bad response status '%s', expected: %s", resp.StatusCode, 200)
+		return nil, errors.New(msg)
+	}
+	//log.Println("response Body:", string(body))
+	//data := []byte(body)
+
+	// Unmarshall the message
+	/*
+		l := &ListContacts{}
+		err = json.Unmarshal(data, &l)
+		if err != nil {
+			msg := fmt.Sprintf("Failed to unmarshal GetContacts response data: %s", err)
+			return nil, errors.New(msg)
+		}
+	*/
+
+	//log.Printf("Got %d results in contact search.", l.Metadata.Total)
+	return resp, nil
+}
+
+// When responding to a slash command with text only (no attachment)
+func RespondMessageTextOnly(text string) {
+	response := SlackResponse{Text: text}
+	r, err := json.Marshal(response)
+	if err != nil {
+		log.Fatalf("Failed building Slack acknowledgement response. %v\n", err)
 		return
 	}
 

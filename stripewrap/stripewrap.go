@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"bitbucket.org/dagoodma/nancyhillis-go/util"
+
 	"encoding/json"
 	"github.com/stripe/stripe-go"
 	"github.com/stripe/stripe-go/card"
@@ -69,17 +71,50 @@ func TokenIdLooksValid(tokenId string) bool {
 	return true
 }
 
-func GetCustomerList() *stripe.CustomerList {
+func IsActiveSubscription(sub *stripe.Subscription) (bool, error) {
+	if sub.Status == stripe.SubscriptionStatusActive {
+		return true, nil
+	}
+	return false, nil
+}
+
+func FormatEpochTime(timestamp int64) string {
+	t := time.Unix(timestamp, 0)
+	//timeStr := timestamp.Format("Mon Jan 2 15:04 2006")
+	//timeStr := t.Format("11/1/2017 16:29:00")
+	timeStr := fmt.Sprintf("%02d/%02d/%d %02d:%02d:%02d",
+		t.Month(), t.Day(), t.Year(),
+		t.Hour(), t.Minute(), t.Second())
+	return timeStr
+}
+
+func GetCustomerListIterator() *customer.Iter {
 	SetApiKey()
 	var p = stripe.CustomerListParams{}
 	i := customer.List(&p)
-	var idx = 1
-	for i.Next() {
-		//$resource$ := i.$Resource$()
-		log.Printf("%d: %s\n", idx, i.Customer().Email)
-		idx = idx + 1
+	/*
+		var idx = 1
+		for i.Next() {
+			//$resource$ := i.$Resource$()
+			log.Printf("%d: %s\n", idx, i.Customer().Email)
+			idx = idx + 1
+		}
+		return nil
+	*/
+	return i
+}
+
+func GetCustomerListIteratorWithParams(listParams map[string]string) *customer.Iter {
+	SetApiKey()
+	stripe.LogLevel = 0 // don't print to log
+
+	p := &stripe.CustomerListParams{}
+	for k, v := range listParams {
+		p.Filters.AddFilter(k, "", v)
 	}
-	return nil
+
+	i := customer.List(p)
+	return i
 }
 
 func GetCustomer(customerId string) (*stripe.Customer, error) {
@@ -91,6 +126,92 @@ func GetCustomer(customerId string) (*stripe.Customer, error) {
 		return nil, err
 	}
 	return c, nil
+}
+
+func GetCustomerByEmail(email string) (*stripe.Customer, error) {
+	if !util.EmailLooksValid(email) {
+		msg := fmt.Sprintf("Invalid email address given: %s", email)
+		return nil, errors.New(msg)
+	}
+	listParams := map[string]string{"email": email}
+	i := GetCustomerListIteratorWithParams(listParams)
+	cnt := 0
+	var c *stripe.Customer = nil
+	for i.Next() {
+		if cnt > 0 {
+			msg := fmt.Sprintf("Found multiple customers with email address: %s", email)
+			return nil, errors.New(msg)
+		}
+
+		c = i.Customer()
+		cnt += 1
+	}
+	if cnt < 1 {
+		msg := fmt.Sprintf("Failed to find customer with email address: %s", email)
+		return nil, errors.New(msg)
+	}
+	return c, nil
+}
+
+func SearchCustomersByName(fullName string) ([]*stripe.Customer, error) {
+	fullNameClean := util.StandardizeSpaces(fullName)
+	if len(fullNameClean) < 1 {
+		msg := fmt.Sprintf("Invalid name given: %s", fullName)
+		return nil, errors.New(msg)
+	}
+	i := GetCustomerListIteratorWithParams(map[string]string{"limit": "100"})
+	l := []*stripe.Customer{}
+	for i.Next() {
+		c := i.Customer()
+		descriptionClean := util.StandardizeSpaces(c.Description)
+		if strings.EqualFold(descriptionClean, fullNameClean) {
+			l = append(l, c)
+			continue
+		}
+		if metaName, ok := c.Metadata["contact_name"]; ok {
+			metaNameClean := util.StandardizeSpaces(metaName)
+			if strings.EqualFold(metaNameClean, fullNameClean) {
+				l = append(l, c)
+			}
+		}
+	}
+	if len(l) < 1 {
+		msg := fmt.Sprintf("Failed to find any customers with name: %s", fullNameClean)
+		return nil, errors.New(msg)
+	}
+	return l, nil
+}
+
+func CreateCustomer(email string, description string) (*stripe.Customer, error) {
+	c1, err := GetCustomerByEmail(email)
+	if c1 != nil {
+		msg := fmt.Sprintf("Customer with email \"%s\" already exists: %s",
+			email, c1.ID)
+		return nil, errors.New(msg)
+	}
+	//SetApiKey() // dont need this will call above
+	//stripe.LogLevel = 0 // don't print to log
+
+	p := &stripe.CustomerParams{
+		Description: stripe.String(description),
+		Email:       stripe.String(email),
+	}
+
+	c2, err := customer.New(p)
+	return c2, err
+}
+
+func UpdateCustomerMetadata(customerId string, metadata map[string]string) (*stripe.Customer, error) {
+	SetApiKey() // dont need this will call above
+	//stripe.LogLevel = 0 // don't print to log
+
+	p := &stripe.CustomerParams{}
+	for k, v := range metadata {
+		p.AddMetadata(k, v)
+	}
+
+	c, err := customer.Update(customerId, p)
+	return c, err
 }
 
 func UnmarshallWebhookEvent(data []byte) (*stripe.Event, error) {

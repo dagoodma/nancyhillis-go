@@ -224,6 +224,10 @@ func StringSliceContains(slice []string, item string) bool {
 	return ok
 }
 
+func StandardizeSpaces(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
 func RoundDown(val float64) int {
 	if val < 0 {
 		return int(val - 1.0)
