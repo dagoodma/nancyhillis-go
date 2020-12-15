@@ -7,19 +7,17 @@ import (
 	"os"
 	"time"
 
-	"bitbucket.org/dagoodma/nancyhillis-go/nancyhillis"
 	"bitbucket.org/dagoodma/nancyhillis-go/slackwrap"
+	"bitbucket.org/dagoodma/nancyhillis-go/studiojourney"
 	"bitbucket.org/dagoodma/nancyhillis-go/util"
 )
 
-// This is for the Slack slash command: /student <email address>
+// This is for the Slack slash command: /sj_stripe <email address>
 
 var RespondToErrorInChannel = true
 var RespondToMessageInChannel = true
 
 var Debug = false // supress extra messages if false
-
-//var LoggedInUserSecretKey = "RBxEi2rt4Skd4TgKytdusBbdp4A4wtbvH"
 
 // Note that we will be using our own customer error handler: HandleError()
 func main() {
@@ -69,7 +67,7 @@ func main() {
 	}
 
 	// Find Stripe customer ID in spreadsheet
-	stripeId, err := nancyhillis.GetSjStripeIdByEmail(email)
+	stripeId, err := studiojourney.GetStripeIdByEmail(email)
 	if err != nil {
 		HandleError(w, "%v", err)
 		return
@@ -77,7 +75,7 @@ func main() {
 
 	// Get SJ account status
 	// TODO support other courses
-	status, err := nancyhillis.GetSjAccountStatus(stripeId)
+	status, err := studiojourney.GetAccountStatus(stripeId)
 	_ = status
 	if err != nil {
 		HandleError(w, err.Error())
@@ -95,7 +93,7 @@ func main() {
 	return
 }
 
-func CreateStudentInfoAttachment(status *nancyhillis.SjStudentStatus) (string, error) {
+func CreateStudentInfoAttachment(status *studiojourney.StudentStatus) (string, error) {
 	name := fmt.Sprintf("%s %s", status.FirstName, status.LastName)
 	startTime := time.Unix(status.Start, 0)
 	createdTime := time.Unix(status.Created, 0)

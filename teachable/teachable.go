@@ -44,15 +44,20 @@ func EnsureValidRelicId(actualRelicId string) error {
 
 func EnsureValidWebhook(h *WebhookHeader, d []byte) error {
 	// Validate the header
-	relicId := h.XNewrelicId
-	err := EnsureValidRelicId(relicId)
-	if err != nil {
-		return err
-	}
+	// NOTE Teachable stopped sending a relic ID and now includes something called:
+	// X-Datadog-Trace-Id, and X-Datadog-Parent-Id
+	// TODO Figure out another validation approach
+	/*
+		relicId := h.XNewrelicId
+		err := EnsureValidRelicId(relicId)
+		if err != nil {
+			return err
+		}
 
-	if len(h.XNewrelicTransaction) < 1 {
-		return errors.New("Missing relic transaction field")
-	}
+		if len(h.XNewrelicTransaction) < 1 {
+			return errors.New("Missing relic transaction field")
+		}
+	*/
 
 	if !strings.Contains(h.UserAgent, "rest-client") {
 		message := fmt.Sprintf("Incorrect user agent field \"%s\"", h.UserAgent)

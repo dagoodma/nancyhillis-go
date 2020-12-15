@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
+	"bitbucket.org/dagoodma/dagoodma-go/util"
 	"bitbucket.org/dagoodma/nancyhillis-go/teachable"
-	"bitbucket.org/dagoodma/nancyhillis-go/util"
 )
 
 var AddUnsubscribeTags = []string{"DO_NOT_DISTURB"}
@@ -57,13 +57,6 @@ func main() {
 	oldName := m.Object.OldName
 	newName := m.Object.NewName
 	if m.Object.NameUpdated {
-		/*
-			err := teachable.StudentUpdatedName(email, oldName, newName)
-			if err != nil {
-				util.ReportWebhookFailure(w, err.Error())
-				return
-			}
-		*/
 		log.Printf("Student %s changed their name from \"%s\" to: %s\n",
 			email, oldName, newName)
 	}
@@ -72,13 +65,6 @@ func main() {
 	oldEmail := m.Object.OldEmail
 	newEmail := m.Object.NewEmail
 	if m.Object.EmailUpdated {
-		/*
-			err = teachable.StudentUpdatedEmail(id, oldEmail, newEmail)
-			if err != nil {
-				util.ReportWebhookFailure(w, err.Error())
-				return
-			}
-		*/
 		message := fmt.Sprintf("Student \"%s\" (%s) changed their email from \"%s\" to: %s", name, id, oldEmail, newEmail)
 		log.Println(message)
 		// Notify slack if they updated
@@ -93,4 +79,10 @@ func main() {
 		// Notify slack if they updated
 		util.ReportWebhookSuccess(w, message)
 	}
+
+	// Propagate changes (name, email, and unsubscribe from marketing through systems)
+	// - All Stripe accounts (TODO: add Rainmaker and old SJ stripe if needed)
+	// - Active Campaign
+	// - GSheet
+	// - Zendesk (TODO: add zendesk api support)
 }

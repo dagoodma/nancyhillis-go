@@ -6,19 +6,17 @@ import (
 	"log"
 	"os"
 
-	"bitbucket.org/dagoodma/nancyhillis-go/membermouse"
+	"bitbucket.org/dagoodma/nancyhillis-go/slackwrap"
+	"bitbucket.org/dagoodma/nancyhillis-go/studiojourney"
 	"bitbucket.org/dagoodma/nancyhillis-go/util"
 )
 
-// This is for the Slack slash command: /sj_founder <email address>
+// This is for the Slack slash command: /sj <email address>
 
-var Debug = false          // supress extra messages if false
-var WebhookIsSilent = true // don't print anything since we return JSON
+var RespondToErrorInChannel = true
+var RespondToMessageInChannel = true
 
-// Json object to hold the result
-type StatusResult struct {
-	Result *membermouse.MemberStatus `json:"result,string"`
-}
+var Debug = false // supress extra messages if false
 
 // Note that we will be using our own customer error handler: HandleError()
 func main() {
@@ -33,22 +31,29 @@ func main() {
 	header := []byte(argsWithProg[1])
 	data := []byte(argsWithProg[2])
 	w := util.NewWebhookEvent(programName, header, data)
-	w.Options.IsSilent = WebhookIsSilent
 	if Debug {
 		util.RecordWebhookStarted(w)
 	}
 
 	// Unmarshal the input data
-	m := make(map[string]string)
-	err := json.Unmarshal(data, &m)
+	c := slackwrap.SlackCommandRequest{}
+
+	err := json.Unmarshal(data, &c)
 	if err != nil {
 		HandleError(w, "Error while parsing input data for '%s'. %v", data, err)
 		return
 	}
 
-	// Get the fields (email)
-	email, ok := m["email"]
-	if !ok || len(email) < 1 {
+	// Validate command token
+	err = slackwrap.ValidateCommandRequest(w.Name, c.Token)
+	if err != nil {
+		HandleError(w, "Failed validating slash command request for '%s'. Security token mismatch.", w.Name)
+		return
+	}
+
+	// Get the fields: email is only argument to command
+	email := c.Text
+	if len(email) < 1 {
 		HandleError(w, "No email address provided")
 		return
 	}
@@ -58,36 +63,31 @@ func main() {
 	}
 
 	// Find founder by email in membermouse
-	m2, err := membermouse.GetMemberByEmail(email)
+	m, err := membermouse.GetMemberByEmail(email)
 	if err != nil {
 		HandleError(w, "Failed to find founder with email \"%s\". %v", email, err.Error())
 		return
 	}
 
 	// Get their member status info
-	status, err := m2.GetStatus()
+	status, err := m.GetStatus()
 	if err != nil {
 		HandleError(w, "Failed fetching member status. %v", err.Error())
 		return
 	}
 
-	// Marshall data and return result
-	result := StatusResult{Result: status}
-	r, err := json.Marshal(result)
+	// Return result
+	msg := fmt.Sprintf("Found founder \"%s\".", email)
+	a, err := CreateFounderInfoAttachment(m, status)
 	if err != nil {
-		HandleError(w, "Failed building status response. %v", err)
+		HandleError(w, "%v", err)
 		return
 	}
-
-	// Send response to JS client
-	fmt.Println(string(r))
+	slackwrap.RespondMessage(msg, a, RespondToMessageInChannel)
 	return
 }
 
 func HandleError(w *util.WebhookEvent, format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	util.PrintJsonError(message)
-	if Debug {
-		log.Printf(message)
-	}
+	slackwrap.RespondError(message, RespondToErrorInChannel)
 }

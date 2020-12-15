@@ -8,8 +8,8 @@ import (
 	//"time"
 	//"github.com/gosexy/to"
 
+	"bitbucket.org/dagoodma/dagoodma-go/util"
 	"bitbucket.org/dagoodma/nancyhillis-go/teachable"
-	"bitbucket.org/dagoodma/nancyhillis-go/util"
 )
 
 func main() {

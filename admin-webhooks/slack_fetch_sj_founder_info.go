@@ -11,14 +11,12 @@ import (
 	"bitbucket.org/dagoodma/nancyhillis-go/util"
 )
 
-// This is for the Slack slash command: /student <email address>
+// This is for the Slack slash command: /sj_founder <email address>
 
 var RespondToErrorInChannel = true
 var RespondToMessageInChannel = true
 
 var Debug = false // supress extra messages if false
-
-//var LoggedInUserSecretKey = "RBxEi2rt4Skd4TgKytdusBbdp4A4wtbvH"
 
 // Note that we will be using our own customer error handler: HandleError()
 func main() {

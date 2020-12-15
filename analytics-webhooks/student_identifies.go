@@ -6,14 +6,40 @@ import (
 	"log"
 	"os"
 
-	"bitbucket.org/dagoodma/nancyhillis-go/membermouse"
-	"bitbucket.org/dagoodma/nancyhillis-go/studiojourney"
 	"bitbucket.org/dagoodma/nancyhillis-go/util"
 )
 
-var Debug = false // Show/hide debug output
+var Debug = true // Show/hide debug output
 
-//var LoggedInUserSecretKey = "RBxEi2rt4Skd4TgKytdusBbdp4A4wtbvH"
+// Student identifies on website (Rainmaker or Teachable) input data
+type InputData struct {
+	WebsiteName string `json:"site_name"`
+	WebsiteUrl  string `json:"site_url"`
+	Email       string `json:"email"`
+	UserId      string `json:"id"`
+	AnalyticsId string `json:"uaid"`
+	ClientId    string `json:"cid"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	Device      string `json:"device"`
+}
+
+type OutputData struct {
+	Status       string `json:"status"`
+	GlobalUserId string `json:"uid"` // For GA user ID
+}
+
+// Valid website names
+var ValidSiteNames = []string{
+	"rainmaker",
+	"teachable",
+}
+
+// Site names to custom field name in AC for site user ID
+var SiteIdFieldName = map[string]string{
+	"rainmaker": "rid",
+	"teachable": "tid",
+}
 
 // Note that we will be using our own customer error handler: HandleError()
 func main() {
@@ -21,7 +47,7 @@ func main() {
 	if len(argsWithProg) < 3 {
 		//log.Fatalf("Not enough arguments, expected %d given: %d",
 		//	1, len(argsWithProg))
-		HandleError("No email address provided")
+		HandleError("No input data provided")
 		return
 	}
 
@@ -35,26 +61,51 @@ func main() {
 	}
 
 	// Unmarshal the input data
-	m := make(map[string]string)
+	m := InputData{}
 	err := json.Unmarshal(data, &m)
 	if err != nil {
 		HandleError("Error while parsing input data for '%s'. %v", data, err)
 		return
 	}
 
-	// Get the fields (email)
-	email, ok := m["email"]
-	if !ok || len(email) < 1 {
-		HandleError("No email address provided")
+	// Get the fields
+	// Website name
+	siteName := m.WebsiteName
+	if len(siteName) < 1 {
+		HandleError(w, "No website name provided")
 		return
 	}
+	if !StringSliceContains(ValidSiteNames, siteName) {
+		HandleError(w, "Invalid website name given: %s", siteName)
+		return
+	}
+	// Website URL
+	siteUrl := m.WebsiteUrl
+	if !strings.HasPrefix(siteUrl, "http") {
+		HandleError(w, "Invalid site url: %s", siteUrl)
+		return
+	}
+	// Email
+	email := m.Email
 	if !util.EmailLooksValid(email) {
-		HandleError("Invalid email address: %s", email)
+		HandleError(w, "Invalid student email: %s", email)
+		return
+	}
+	// Site User ID
+	userId := m.UserId
+	if len(userId) < 1 {
+		HandleError(w, "No site user ID provided")
+		return
+	}
+	// GA Client ID
+	id := m.Id
+	if len(id) < 1 {
+		HandleError(w, "No site user ID provided")
 		return
 	}
 
 	// Find Stripe customer ID in spreadsheet
-	stripeId, err := studiojourney.GetStripeIdByEmail(email)
+	stripeId, err := nancyhillis.GetSjStripeIdByEmail(email)
 	if err != nil {
 		// Check if they're a founder who never migrated
 		if IsFounderNeverMigrated(email) {
@@ -73,8 +124,6 @@ func main() {
 }
 
 // Check if this person is in membermouse and never migrated
-// TODO place the patch here to fix students who aren't in Stripe,
-// or just add them into Stripe.
 func IsFounderNeverMigrated(email string) bool {
 	// Find founder by email in membermouse
 	m, err := membermouse.GetMemberByEmail(email)

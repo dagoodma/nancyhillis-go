@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
+	"bitbucket.org/dagoodma/dagoodma-go/util"
 	"bitbucket.org/dagoodma/nancyhillis-go/teachable"
-	"bitbucket.org/dagoodma/nancyhillis-go/util"
 )
 
 func main() {

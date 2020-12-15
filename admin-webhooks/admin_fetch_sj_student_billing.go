@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"bitbucket.org/dagoodma/nancyhillis-go/nancyhillis"
+	"bitbucket.org/dagoodma/nancyhillis-go/studiojourney"
 	"bitbucket.org/dagoodma/nancyhillis-go/util"
 )
 
@@ -15,7 +15,7 @@ var WebhookIsSilent = true // don't print anything since we return JSON
 
 // Json object to hold the result
 type StatusResult struct {
-	Result *nancyhillis.SjStudentStatus `json:"result,string"`
+	Result *studiojourney.StudentBillingStatus `json:"result,string"`
 }
 
 // Note that we will be using our own customer error handler: HandleError()
@@ -55,16 +55,8 @@ func main() {
 		return
 	}
 
-	// Find Stripe customer ID in spreadsheet
-	stripeId, err := nancyhillis.GetSjStripeIdByEmail(email)
-	if err != nil {
-		HandleError(w, "%v", err)
-		return
-	}
-
-	// Get SJ account status
-	// TODO support other courses
-	status, err := nancyhillis.GetSjAccountStatus(stripeId)
+	// Get SJ billing status
+	status, err := studiojourney.GetBillingStatus(email)
 	_ = status
 	if err != nil {
 		HandleError(w, err.Error())

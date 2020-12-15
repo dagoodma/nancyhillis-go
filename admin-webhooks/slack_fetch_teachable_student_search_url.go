@@ -12,7 +12,7 @@ import (
 	"bitbucket.org/dagoodma/nancyhillis-go/util"
 )
 
-// This is for the Slack slash command: /student <email address>
+// This is for the Slack slash command: /teachable <email address>
 
 var RespondToErrorInChannel = true
 var RespondToMessageInChannel = true

@@ -3,7 +3,7 @@ package activecampaign
 // For ActiveCampaign v3 API
 
 import (
-	//"bytes"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"

@@ -7,11 +7,7 @@ import (
 	"os"
 	//"strings"
 	//"time"
-	//"gsheetwrap"
-	//"bitbucket.org/dagoodma/nancyhillis-go/nancyhillis"
 	"bitbucket.org/dagoodma/nancyhillis-go/stripewrap"
-	//"bitbucket.org/dagoodma/nancyhillis-go/util"
-	//"github.com/stripe/stripe-go"
 )
 
 // This is just for looking up students in Stripe

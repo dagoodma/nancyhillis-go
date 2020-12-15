@@ -181,6 +181,35 @@ func (m *Member) FlagFounderMigrated() error {
 	return nil
 }
 
+func GetMemberById(id uint32) (*Member, error) {
+	apiKey, apiPassword := GetApiCredentials()
+
+	url := fmt.Sprintf("%s%s", ApiUrlPrefix, ApiUrlSuffixGetMember)
+	//fmt.Println("URL:>", url)
+
+	var jsonStr = fmt.Sprintf("apikey=%s&apisecret=%s&member_id=%d", apiKey, apiPassword, id)
+	var jsonData = []byte(jsonStr)
+
+	body, err := DoApiRequest(url, jsonData)
+	if err != nil {
+		return nil, err
+	}
+
+	r := GetMemberResponse{}
+	err = json.Unmarshal([]byte(body), &r)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Code != "200" || r.Message != "" || r.Data == nil {
+		msg := fmt.Sprintf("Got error (%s). %v", r.Code, r.Message)
+		return nil, errors.New(msg)
+	}
+
+	//log.Printf("%v", r.Data)
+	return r.Data, nil
+}
+
 func GetMemberByEmail(email string) (*Member, error) {
 	apiKey, apiPassword := GetApiCredentials()
 

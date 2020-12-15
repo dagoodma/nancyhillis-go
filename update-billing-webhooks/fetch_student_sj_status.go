@@ -8,15 +8,16 @@ import (
 	"os"
 
 	//"gsheetwrap"
-	"bitbucket.org/dagoodma/nancyhillis-go/nancyhillis"
-	"bitbucket.org/dagoodma/nancyhillis-go/util"
+	"bitbucket.org/dagoodma/dagoodma-go/stripewrap"
+	"bitbucket.org/dagoodma/dagoodma-go/util"
+	"bitbucket.org/dagoodma/nancyhillis-go/studiojourney"
 )
 
 var Debug = false
 
 // Json object to hold the result
 type StatusResult struct {
-	Result *nancyhillis.SjStudentStatus `json:"result,string"`
+	Result *studiojourney.StudentStatus `json:"result,string"`
 }
 
 // Note that we will be using our own customer error handler: HandleError()
@@ -48,13 +49,35 @@ func main() {
 	}
 
 	// Get and validate the fields (customer_id)
-	customerId, ok := m["customer_id"]
-	if !ok || len(customerId) < 1 {
-		HandleError("No customer ID provided")
+	// First try email address
+	email, ok := m["email"]
+	customerId := ""
+	if ok && len(email) > 0 {
+		if !util.EmailLooksValid(email) {
+			HandleError("Invalid email address provided")
+			return
+		}
+		// Get customer ID from email address
+		log.Printf("Here with %s\n", email)
+		c, err := stripewrap.GetCustomerByEmail(email)
+		if err != nil || c == nil {
+			HandleError("Could not find customer by email address. %v", err)
+			return
+		}
+		customerId = c.ID
+	} else {
+		customerId, ok = m["customer_id"]
+		if !ok || len(customerId) < 1 {
+			HandleError("No customer ID or email provided")
+			return
+		}
+	}
+	if len(customerId) < 1 {
+		HandleError("Could not find customer ID")
 		return
 	}
 
-	status, err := nancyhillis.GetSjAccountStatus(customerId)
+	status, err := studiojourney.GetAccountStatus(customerId)
 	if err != nil {
 		HandleError(err.Error())
 		return

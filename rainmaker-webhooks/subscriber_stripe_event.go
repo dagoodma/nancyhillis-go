@@ -164,7 +164,13 @@ func main() {
 		return
 	}
 	// Build the message for slack
+	// TODO create a a new util function for ReportWebhookWarning
+	//if event.Type != "charge.failed" {
 	util.ReportWebhookSuccess(w, message)
+	//}
+	//else {
+	//}
+
 	return
 }
 
