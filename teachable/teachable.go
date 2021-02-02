@@ -439,7 +439,7 @@ func GetUser(params QueryParameters) (*ListUsersUser, error) {
 
 func GetUserByEmail(email string) (*ListUsersUser, error) {
     var p QueryParameters
-    p.Email = email
+    p.Email = strings.ToLower(email)
 
     r, err := GetUsersAsync(p)
     if err != nil {

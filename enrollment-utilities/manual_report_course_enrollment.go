@@ -15,11 +15,21 @@ import (
 	"bitbucket.org/dagoodma/dagoodma-go/gsheetwrap"
 	//"bitbucket.org/dagoodma/dagoodma-go/util"
 	"gopkg.in/Iwark/spreadsheet.v2"
+	"google.golang.org/api/sheets/v4"
 )
 
 
 var Debug = true // supress extra messages if false
 var GoogleSheetSleepTime, _ = time.ParseDuration("0.5s")
+
+var AutomationSuffixes = []string{"Enrolled", "YearlyMember", "Renewal_Invitation",
+    "PaymentFailed", "Complimentary_Trial_Invite", "CollectingTestimonials"}
+
+/*
+var AutomationsSuffixes = []string{"CollectingTestimonials", "Complimentary_Trial_Invite",
+    "ManualAccess", "Renewal_Invitation", "YearlyMember", "PaymentFailed", "Revoke",
+    "Invitation", "Cancelled"}
+*/
 
 var ReportFolderId = "1Sw8QyhMuGtHPOrCqun6tBDxY8QT5zjAf"
 
@@ -33,10 +43,12 @@ func myUsage() {
 
 func main() {
 	var verbose int
-	var dryRun bool
+	var dryRun, skipAutomations, excludeValid bool
 
 	flag.CountVarP(&verbose, "verbose", "v", "Print output with increasing verbosity")
 	flag.BoolVarP(&dryRun, "dry-run", "d", false, "Print results without creating report spreadsheet")
+	flag.BoolVarP(&skipAutomations, "skip-automations", "s", false, "Don't include AC automation info in the list")
+	flag.BoolVarP(&excludeValid, "exclude-valid", "x", false, "Don't include users who are enrolled in Teachable and AC")
 	//flag.BoolVarP(&exactMatch, "exact-match", "e", false, "To Be Implemented")
 
     flag.Usage = myUsage
@@ -47,8 +59,8 @@ func main() {
         log.Fatal("No course acronym")
         return
     }
-    var courseAcronymRegex = regexp.MustCompile(`^(tajc|tajm|ewc|sjc|sjm|atc|lys|bundle_tajc-ewc|tap_challenge|tapcip)$`)
-    courseAcronym := strings.ToLower(string(args[0]))
+    var courseAcronymRegex = regexp.MustCompile(`^(TAJC|TAJM|EWC|SJC|SJM|ATC|LYS|BUNDLE_TAJC-EWC|TAP_CHALLENGE|TAPCIP)$`)
+    courseAcronym := strings.ToUpper(string(args[0]))
 
     if courseAcronymRegex.FindString(courseAcronym) == "" {
         log.Fatal("Expected valid course acronym but got: ", courseAcronym)
@@ -63,7 +75,7 @@ func main() {
     // -------------- Active Campaign
     start := time.Now()
     firstStart := time.Now()
-    tagName := strings.ToUpper(courseAcronym) + "_Enrolled"
+    tagName := courseAcronym + "_Enrolled"
     log.Println("Fetching contacts in ActiveCampaign with tag: ", tagName)
     contactsWithTag, err := ac.GetContactsByTag(tagName)
     if err != nil {
@@ -73,8 +85,85 @@ func main() {
     duration := time.Since(start)
     log.Printf("Got %d contacts with tag '%s' in: %v", len(contactsWithTag), tagName, duration)
 
-    // TODO get contacts in automation as well
-    // (if _Enrolled, should be in _Enrolled, _Renewal_Invitation, _YearlyMember, or Comp trial invite...)
+    // Get automations
+    //var automationContacs
+    contactAutomationsByEmail := make(map[string][]string)
+    if !skipAutomations {
+        start = time.Now()
+        for _, v := range AutomationSuffixes {
+            // Get automation from AC
+            automationName := fmt.Sprintf("%s_%s", courseAcronym, v)
+            if Debug {
+                log.Printf("Fetching automation '%s' from AC...", automationName)
+            }
+            automations, err := ac.GetAutomationsByName(automationName, true)
+            if err != nil {
+                log.Printf("Error retrieving automations for '%s': %v\n", automationName, err)
+                //return
+                continue
+            }
+            if len(automations) > 1 {
+                log.Printf("Found multiple automations when searching for: %s", automationName)
+                return
+            }
+            // Get contacts in automation
+            a := automations[0]
+            if Debug {
+                log.Printf("Fetching contacts for automation '%s' (id=%s) from AC...", a.Name, a.Id)
+            }
+            automationContacts, err := ac.GetAutomationContacts(&a)
+            if err != nil {
+                log.Printf("Error retrieving automation contacts for '%s' (id=%s): %v\n",
+                    a.Name, a.Id, err)
+                return
+            }
+            if len(automationContacts) == 0 {
+                if Debug {
+                    log.Printf("Skipping empty automation '%s' (id=%s)...", a.Name, a.Id)
+                }
+                continue
+            }
+            // Filter those who are completed
+            var contactsScheduled []ac.ListContactAutomationsContact
+            for _, c := range automationContacts {
+                if !c.IsCompleted {
+                    contactsScheduled  = append(contactsScheduled, c)
+                }
+            }
+            if Debug {
+                log.Printf("Filtered automation contact list from %d to %d to include" +
+                           " only those who have not completed the automation.",
+                           len(automationContacts), len(contactsScheduled))
+            }
+            automationContacts = contactsScheduled
+
+            // Get info on all contacts in automation (for email)
+            if Debug {
+                log.Printf("Fetching info on %d contacts for automation '%s' (id=%s) from AC...",
+                    len(automationContacts), a.Name, a.Id)
+            }
+            contacts, err := ac.GetAutomationContactsInfo(automationContacts)
+            if err != nil {
+                log.Printf("Error retrieving more info on each contact in automation '%s'" +
+                           " (id=%s) contact list: %s", a.Name, a.Id, err)
+                return
+            }
+            // Add them to the map with automation name
+            for _, c := range contacts {
+                email := strings.ToLower(c.Email)
+                if _, ok := contactAutomationsByEmail[email]; !ok {
+                    contactAutomationsByEmail[email] = []string{}
+                }
+                contactAutomationsByEmail[email] = append(
+                    contactAutomationsByEmail[email], automationName)
+            }
+        }
+        //log.Printf("HEre: %#v", contactAutomationsById)
+
+        duration = time.Since(start)
+        log.Printf("Got %d automations for a total %d contacts in AC in: %v",
+            len(AutomationSuffixes), len(contactAutomationsByEmail), duration)
+    }
 
     // -------------- Teachable
     start = time.Now()
@@ -97,7 +186,6 @@ func main() {
             break
         }
     }
-    courseAcronym = strings.ToUpper(courseAcronym) // for printing before
     if course == nil {
         log.Printf("Failed to find course with acronym '%s' in Teachable", courseAcronym)
         return
@@ -123,13 +211,15 @@ func main() {
     // Now go through AC and Teachable and compare
     start = time.Now()
     studentsByEmail := make(CourseStudents)
+    // AC tag <COURSE>_Enrolled
     for i := range(contactsWithTag) {
         c := contactsWithTag[i]
-        if _, ok := studentsByEmail[c.Email]; !ok {
-            studentsByEmail[c.Email] = &CourseStudent{Email: c.Email}
+        email := strings.ToLower(c.Email)
+        if _, ok := studentsByEmail[email]; !ok {
+            studentsByEmail[email] = &CourseStudent{Email: email}
         }
-        studentsByEmail[c.Email].AcContact = &c
-        studentsByEmail[c.Email].IsInAc = true
+        studentsByEmail[email].AcContact = &c
+        studentsByEmail[email].IsInAc = true
     }
 
     for i := range(teachableStudents) {
@@ -139,6 +229,29 @@ func main() {
         }
         studentsByEmail[s.Email].TeachableUser = &s
         studentsByEmail[s.Email].IsInTeachable = true
+    }
+
+    // Teachable students in course
+    for i := range(teachableStudents) {
+        s := teachableStudents[i]
+        if _, ok := studentsByEmail[s.Email]; !ok {
+            studentsByEmail[s.Email] = &CourseStudent{Email: s.Email}
+        }
+        studentsByEmail[s.Email].TeachableUser = &s
+        studentsByEmail[s.Email].IsInTeachable = true
+    }
+
+    // AC automations
+    automationContactsMissingInAc := make(map[string][]string)
+    if !skipAutomations {
+        for k, v := range(contactAutomationsByEmail) {
+            if _, ok := studentsByEmail[k]; !ok {
+                //studentsByEmail[k] = &CourseStudent{Email: c.Email}
+                automationContactsMissingInAc[k] = v
+                continue // exclude them from spreadsheet, but make separate list
+            }
+            studentsByEmail[k].AcAutomations = v
+        }
     }
 
     duration = time.Since(start)
@@ -223,6 +336,8 @@ func main() {
 
     // Write the data
     writeStart := time.Now()
+    validUsers := 0
+    row := 0
     if Debug {
         log.Printf("Writing%s data to spreadsheet: %s", dryRunStr, reportSpreadsheetName)
     }
@@ -233,14 +348,23 @@ func main() {
             return
         }
 
-        row := 0
-        headerRow := []string{"Email (from both lists):", "In Teachable?", "In ActiveCampaign?"}
+        headerRow := []string{"Email (from both lists):", "In Teachable?",
+                              "In ActiveCampaign?"}
+        if !skipAutomations {
+            headerRow = append(headerRow, "AC Automations")
+        }
         for i, v := range headerRow {
             sheet.Update(row, i, v)
         }
         row += 1
 
         for _, v := range(studentsByEmail)  {
+            if v.IsInAc && v.IsInTeachable {
+                validUsers += 1
+                if excludeValid  {
+                    continue
+                }
+            }
             isInAc := "Yes"
             if !v.IsInAc {
                 isInAc = "No"
@@ -250,6 +374,10 @@ func main() {
                 isInTeachable = "No"
             }
             newRow := []string{v.Email, isInTeachable, isInAc}
+            if !skipAutomations {
+                acAutomations := strings.Join(v.AcAutomations, ", ")
+                newRow = append(newRow, acAutomations)
+            }
             for i, v := range newRow {
                 sheet.Update(row, i, v)
             }
@@ -257,19 +385,69 @@ func main() {
         }
         err = sheet.Synchronize()
         if err != nil {
-            log.Printf("Failed writing %d rows to file '%s': %v",
-                len(studentsByEmail) + 1, reportSpreadsheetName, err)
+            log.Printf("Failed writing %d rows to file '%s': %v", row,
+                reportSpreadsheetName, err)
+            return
+        }
+
+        // Write the style/conditional formatting data
+        boolRuleYes := sheets.ConditionalFormatRule{
+            BooleanRule: &sheets.BooleanRule{
+                Condition: &sheets.BooleanCondition{
+                    Type: "TEXT_CONTAINS",
+                    Values: []*sheets.ConditionValue{
+                        &sheets.ConditionValue{UserEnteredValue: "Yes"},
+                    },
+                },
+                Format: &sheets.CellFormat{
+                    BackgroundColor: &sheets.Color{Red: 0.643, Green: 0.910, Blue: 0.804},
+                },
+            },
+            Ranges: []*sheets.GridRange{&sheets.GridRange{
+                StartColumnIndex: 1,
+                EndColumnIndex: 3,
+                StartRowIndex: 1,
+                EndRowIndex: to.Int64(row - 1),
+            }},
+        }
+        boolRuleNo := sheets.ConditionalFormatRule{
+            BooleanRule: &sheets.BooleanRule{
+                Condition: &sheets.BooleanCondition{
+                    Type: "TEXT_CONTAINS",
+                    Values: []*sheets.ConditionValue{
+                        &sheets.ConditionValue{UserEnteredValue: "No"},
+                    },
+                },
+                Format: &sheets.CellFormat{
+                    BackgroundColor: &sheets.Color{Red: 0.957, Green: 0.780, Blue: 0.765},
+                },
+            },
+            Ranges: []*sheets.GridRange{&sheets.GridRange{
+                StartColumnIndex: 1,
+                EndColumnIndex: 3,
+                StartRowIndex: 1,
+                EndRowIndex: to.Int64(row - 1),
+            }},
+        }
+        err = gsheetwrap.AddConditionalFormatRuleToSpreadsheet(ss.ID, &boolRuleYes, &boolRuleNo)
+        if err != nil {
+            log.Printf("Failed to write conditional formatting rule to spreadsheet (id=%d): %s",
+                ss.ID, err)
             return
         }
     }
     if Debug {
         duration = time.Since(writeStart)
         log.Printf("Wrote%s %d rows to spreadsheet '%s' in: %v", dryRunStr,
-            len(studentsByEmail) + 1, reportSpreadsheetName, duration)
+            row, reportSpreadsheetName, duration)
     }
-
+    validStr := "with"
+    if excludeValid {
+        validStr = "excluding"
+    }
     duration = time.Since(start)
-    log.Printf("Finished creating%s spreadsheet report in: %v", dryRunStr, duration)
+    log.Printf("Finished creating%s spreadsheet report with %d rows and %s %d valid" +
+               " students in: %v", dryRunStr, row, validStr, validUsers, duration)
 
     totalDuration := time.Since(firstStart)
     log.Printf("Total exeuction time: %v\n", totalDuration)
@@ -281,7 +459,7 @@ type CourseStudent struct {
     AcContact       *ac.ListContactsContact
     IsInTeachable   bool
     IsInAc          bool
-    //acAutomation
+    AcAutomations   []string
 }
 
 type StudentList []*CourseStudent

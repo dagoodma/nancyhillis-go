@@ -780,6 +780,13 @@ func GetAutomationContactsInfo(contacts []ListContactAutomationsContact) ([]List
             len(contacts))
     }
 
+    if len(contacts) < 1 {
+        if DEBUG {
+            log.Printf("No contacts to fetch for empty contact list.")
+        }
+        return result, nil
+    }
+
     // Use goroutine to request results concurrently
     // this buffered channel will block at the concurrency limit
     semaphoreChan := make(chan struct{}, REQUEST_CONCURRENCY_LIMIT )
@@ -1831,5 +1838,49 @@ func (l *ListContactAutomationsContactLinksContact) UnmarshalJSON(jsonStr []byte
     *l = ListContactAutomationsContactLinksContact(l2)
 
     return nil
+}
+
+/*
+func printListOfAutomationContacts(list []ac.ListContactAutomationsContact) {
+	var automationContactsListBuffer bytes.Buffer
+
+	for i, a := range list {
+		if i > 0 {
+			automationContactsListBuffer.WriteString(", ")
+		}
+        automationContactsListBuffer.WriteString("contact_" + a.Contact)
+	}
+	fmt.Println(automationContactsListBuffer.String())
+}*/
+
+type AutomationContactList []*ListContactAutomationsContact
+
+func (l *AutomationContactList) String() string {
+	var automationContactListBuffer bytes.Buffer
+
+	for _, c := range *l {
+        automationContactListBuffer.WriteString(fmt.Sprintf(
+            " - Contact id: %s\n" +
+            "   automation_contact_id: %s\n" +
+            "   status: %s\n" +
+            "   batchid: %s\n" +
+            "   add_date: %s\n" +
+            "   remove_date: %s\n" +
+            "   last_date: %s\n" +
+            "   completed_elements: %d\n" +
+            "   total_elements: %d\n" +
+            "   completed?: %t\n",
+            c.Contact, c.Id, c.Status, c.BatchId, c.AddDate, c.RemoveDate,
+            c.LastDate, c.CompletedElements, c.TotalElements, c.Completed > 0))
+	}
+	return automationContactListBuffer.String()
+}
+
+func GetAutomationContactList(l []ListContactAutomationsContact) AutomationContactList {
+    var l2 AutomationContactList
+    for i := 0; i < len(l); i++ {
+        l2 = append(l2, &l[i])
+    }
+    return l2
 }
 

@@ -89,7 +89,8 @@ func main() {
     log.Printf("Got %d automation contacts in: %v", len(contacts), duration)
 
     if !printEmails {
-        printListOfAutomationContacts(contacts)
+        l := ac.GetAutomationContactList(contacts)
+        fmt.Println(&l)
     } else {
         start = time.Now()
         contacts2, err := ac.GetAutomationContactsInfo(contacts)

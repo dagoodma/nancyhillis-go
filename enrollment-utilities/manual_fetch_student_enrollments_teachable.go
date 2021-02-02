@@ -6,6 +6,7 @@ import (
 	"log"
 	"fmt"
     "time"
+    "github.com/xiam/to"
 	flag "github.com/spf13/pflag"
 	"bitbucket.org/dagoodma/nancyhillis-go/teachable"
     "regexp"
@@ -53,7 +54,7 @@ func main() {
         }
         log.Printf("Got user: %#v", user)
     } else if regexId.FindString(emailOrId) != "" {
-        user, err = teachable.GetUserById(emailOrId)
+        user, err = teachable.GetUserById(to.Uint64(emailOrId))
         if err != nil {
             log.Printf("Error retrieving user with ID %s: %s\n", emailOrId, err)
             return

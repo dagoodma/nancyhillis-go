@@ -6,6 +6,7 @@ import (
 	"fmt"
     "time"
     "os"
+    "github.com/xiam/to"
 	flag "github.com/spf13/pflag"
 	teachable "bitbucket.org/dagoodma/nancyhillis-go/teachable"
     "regexp"
@@ -29,6 +30,7 @@ func main() {
 	flag.BoolVarP(&dryRun, "dry-run", "d", false, "To Be Implemented")
 	flag.BoolVarP(&exactMatch, "exact-match", "e", false, "To Be Implemented") //"Tag name must match exactly, otherwise it can be a substring")
 
+    flag.Usage = myUsage
 	flag.Parse()
 	args := flag.Args()
 
@@ -61,7 +63,7 @@ func main() {
         log.Println(u)
         users = append(users, *u)
     } else if regexId.FindString(userEmailOrId) != "" {
-        u, err := teachable.GetUserById(userEmailOrId)
+        u, err := teachable.GetUserById(to.Uint64(userEmailOrId))
         if err != nil {
             log.Printf("Error retrieving user with ID %s: %s\n", userEmailOrId, err)
             return
