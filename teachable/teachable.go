@@ -116,6 +116,19 @@ func GetApiCredentials() (string, *ApiLoginCredentials) {
     return url, &credentials
 }
 
+// Returns raw API URL only (with no suffix)
+func GetRawApiUrl() string {
+    var c SecretsConfig
+    err := c.GetSecrets(SecretsFilePath)
+    if err != nil {
+        log.Fatalf("Could not open YAML secrets file: %s", err.Error())
+    }
+
+    apiUrl := c.ApiUrl
+
+    return apiUrl
+}
+
 func BuildRequestUrl(apiUrl string, requestSuffix string, pathParts ...string) (*url.URL, error) {
     urlRaw := fmt.Sprintf("%s%s", apiUrl, requestSuffix)
     for _, v := range pathParts {
@@ -473,9 +486,9 @@ func GetUserById(id uint64) (*ListUsersUser, error) {
 }
 
 func GetUserProfileUrlById(id uint64) string {
-    apiUrl, _ := GetApiCredentials()
-    url := fmt.Sprintf("%s%s%s/%s%s", apiUrl, API_URL_ADMIN,
-        API_URL_USERS, to.String(id), API_URL_INFORMATION)
+    apiUrl := GetRawApiUrl()
+    url := fmt.Sprintf("%s%s%s/%s%s", apiUrl, API_URL_ADMIN, API_URL_USERS,
+        to.String(id), API_URL_INFORMATION)
     return url
 }
 

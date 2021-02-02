@@ -22,6 +22,8 @@ import (
 var Debug = true // supress extra messages if false
 var GoogleSheetSleepTime, _ = time.ParseDuration("0.5s")
 
+var AddHyperlinksToReport = true
+
 var AutomationSuffixes = []string{"Enrolled", "YearlyMember", "Renewal_Invitation",
     "PaymentFailed", "Complimentary_Trial_Invite", "CollectingTestimonials"}
 
@@ -88,6 +90,7 @@ func main() {
     // Get automations
     //var automationContacs
     contactAutomationsByEmail := make(map[string][]string)
+    contactAutomationsIdByEmail := make(map[string]string)
     if !skipAutomations {
         start = time.Now()
         for _, v := range AutomationSuffixes {
@@ -153,6 +156,7 @@ func main() {
                 email := strings.ToLower(c.Email)
                 if _, ok := contactAutomationsByEmail[email]; !ok {
                     contactAutomationsByEmail[email] = []string{}
+                    contactAutomationsIdByEmail[email] = c.Id
                 }
                 contactAutomationsByEmail[email] = append(
                     contactAutomationsByEmail[email], automationName)
@@ -220,15 +224,7 @@ func main() {
         }
         studentsByEmail[email].AcContact = &c
         studentsByEmail[email].IsInAc = true
-    }
-
-    for i := range(teachableStudents) {
-        s := teachableStudents[i]
-        if _, ok := studentsByEmail[s.Email]; !ok {
-            studentsByEmail[s.Email] = &CourseStudent{Email: s.Email}
-        }
-        studentsByEmail[s.Email].TeachableUser = &s
-        studentsByEmail[s.Email].IsInTeachable = true
+        studentsByEmail[email].AcProfileUrl = ac.GetContactProfileUrlById(c.Id)
     }
 
     // Teachable students in course
@@ -239,6 +235,8 @@ func main() {
         }
         studentsByEmail[s.Email].TeachableUser = &s
         studentsByEmail[s.Email].IsInTeachable = true
+        studentsByEmail[s.Email].TeachableProfileUrl =
+            teachable.GetUserProfileUrlById(s.Id)
     }
 
     // AC automations
@@ -246,11 +244,13 @@ func main() {
     if !skipAutomations {
         for k, v := range(contactAutomationsByEmail) {
             if _, ok := studentsByEmail[k]; !ok {
-                //studentsByEmail[k] = &CourseStudent{Email: c.Email}
                 automationContactsMissingInAc[k] = v
                 continue // exclude them from spreadsheet, but make separate list
             }
             studentsByEmail[k].AcAutomations = v
+            // TODO do we need this?
+            id := contactAutomationsIdByEmail[k]
+            studentsByEmail[k].AcProfileUrl = ac.GetContactProfileUrlById(id)
         }
     }
 
@@ -279,10 +279,16 @@ func main() {
         fmt.Println("\t", v)
     }
     log.Printf("%d students with %s_Enrolled tag in AC but are not enrolled in Teachable:\n",
-        len(studentsMissingInAc), courseAcronym)
+        len(studentsMissingInTeachable), courseAcronym)
     for _, v := range(studentsMissingInTeachable) {
         //fmt.Println("\t", v.Email)
         fmt.Println("\t", v)
+    }
+    log.Printf("%d students in %s automations in AC but are not enrolled in Teachable or AC:\n",
+        len(automationContactsMissingInAc), courseAcronym)
+    for k, v := range(automationContactsMissingInAc) {
+        //fmt.Println("\t", v.Email)
+        fmt.Printf("\t%s -- %+q\n", k, v)
     }
     duration = time.Since(start)
     log.Printf("Finished comparing students between Teachable and AC in: %v", duration)
@@ -296,8 +302,12 @@ func main() {
         dryRunStr = ""
     }
     t := time.Now()
-    reportSpreadsheetName := fmt.Sprintf("%s_Enrolled_AC-Teachable_Comparison_" +
-        "%d-%02d-%02dT%02d:%02d:%02d", courseAcronym, t.Year(), t.Month(),
+    allStr := "_all"
+    if excludeValid {
+        allStr = ""
+    }
+    reportSpreadsheetName := fmt.Sprintf("%s_Enrolled%s_AC-Teachable_Comparison_" +
+        "%d-%02d-%02dT%02d:%02d:%02d", courseAcronym, allStr, t.Year(), t.Month(),
         t.Day(), t.Hour(), t.Minute(), t.Second())
 	if verbose > 0 {
 		log.Printf("Creating%s report spreadsheet \"%s\"...\n",
@@ -373,6 +383,12 @@ func main() {
             if !v.IsInTeachable {
                 isInTeachable = "No"
             }
+            if AddHyperlinksToReport {
+                isInAc = fmt.Sprintf("=HYPERLINK(\"%s\", \"%s\")",
+                    v.AcProfileUrl, isInAc)
+                isInTeachable = fmt.Sprintf("=HYPERLINK(\"%s\", \"%s\")",
+                    v.TeachableProfileUrl, isInTeachable)
+            }
             newRow := []string{v.Email, isInTeachable, isInAc}
             if !skipAutomations {
                 acAutomations := strings.Join(v.AcAutomations, ", ")
@@ -407,7 +423,7 @@ func main() {
                 StartColumnIndex: 1,
                 EndColumnIndex: 3,
                 StartRowIndex: 1,
-                EndRowIndex: to.Int64(row - 1),
+                EndRowIndex: to.Int64(row),
             }},
         }
         boolRuleNo := sheets.ConditionalFormatRule{
@@ -426,7 +442,7 @@ func main() {
                 StartColumnIndex: 1,
                 EndColumnIndex: 3,
                 StartRowIndex: 1,
-                EndRowIndex: to.Int64(row - 1),
+                EndRowIndex: to.Int64(row),
             }},
         }
         err = gsheetwrap.AddConditionalFormatRuleToSpreadsheet(ss.ID, &boolRuleYes, &boolRuleNo)
@@ -454,12 +470,14 @@ func main() {
 }
 
 type CourseStudent struct {
-    Email           string
-    TeachableUser   *teachable.ListUsersUser
-    AcContact       *ac.ListContactsContact
-    IsInTeachable   bool
-    IsInAc          bool
-    AcAutomations   []string
+    Email               string
+    TeachableUser       *teachable.ListUsersUser
+    AcContact           *ac.ListContactsContact
+    IsInTeachable       bool
+    IsInAc              bool
+    AcProfileUrl        string
+    TeachableProfileUrl string
+    AcAutomations       []string
 }
 
 type StudentList []*CourseStudent
