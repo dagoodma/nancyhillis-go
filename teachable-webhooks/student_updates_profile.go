@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"bitbucket.org/dagoodma/dagoodma-go/slackwrap"
 	"bitbucket.org/dagoodma/dagoodma-go/util"
 	"bitbucket.org/dagoodma/nancyhillis-go/teachable"
 )
@@ -19,6 +20,13 @@ func main() {
 		log.Fatalf("Not enough arguments, expected %d given: %d",
 			3, len(argsWithProg))
 	}
+
+    // Local secrets?
+    if _, err := os.Stat("slack_secrets.yml"); !os.IsNotExist(err) {
+        log.Println("Got local slack secrets.")
+        slackwrap.SecretsFilePath = "slack_secrets.yml"
+    }
+    //slackwrap.DEBUG = false
 
 	// Create the webhook event
 	programName := string(argsWithProg[0])

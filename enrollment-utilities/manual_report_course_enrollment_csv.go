@@ -8,7 +8,6 @@ import (
 	"fmt"
     "time"
 	flag "github.com/spf13/pflag"
-    "regexp"
     "github.com/xiam/to"
 	"bitbucket.org/dagoodma/nancyhillis-go/teachable"
 	ac "bitbucket.org/dagoodma/nancyhillis-go/activecampaign"
@@ -19,7 +18,7 @@ import (
 )
 
 
-var Debug = true // supress extra messages if false
+var Debug = false // supress extra messages if false
 var GoogleSheetSleepTime, _ = time.ParseDuration("0.5s")
 
 var AddHyperlinksToReport = true
@@ -42,8 +41,9 @@ var ExtraTagSuffixes = []string{"4ExtraMonths", "Cancelled", "FreeAccess",
 var ReportFolderId = "1Sw8QyhMuGtHPOrCqun6tBDxY8QT5zjAf"
 
 func myUsage() {
-     fmt.Printf("Usage: %s [OPTIONS] <COURSE_ACRONYM> \n", os.Args[0])
-     fmt.Printf("Compare course enrollment between Teachable and ActiveCampaign for a given course.\n" +
+     fmt.Printf("Usage: %s [OPTIONS] <COURSE_ACRONYM> <COURSE_CSV_FILE> \n", os.Args[0])
+     fmt.Printf("Compare course enrollment between Teachable and ActiveCampaign for a" +
+                " given course using a Teachable student record CSV file.\n" +
                 "Possible course acronyms to report on are:\n" +
                 "\tTAJC: The Artist's Journey Course\n" +
                 "\tTAJM: The Artist's Journey Masterclass\n" +
@@ -80,21 +80,27 @@ func main() {
         log.Fatal("No course acronym")
         return
     }
-    var courseAcronymRegex = regexp.MustCompile(`^(TAJC|TAJM|EWC|SJC|SJM|ATC|LYS|BUNDLE_TAJC-EWC|TAP_CHALLENGE|TAPCIP)$`)
-    courseAcronym := strings.ToUpper(string(args[0]))
+	if len(args) < 2 {
+        log.Fatal("No Teachable course student CSV file given")
+        return
+    }
 
-    if courseAcronymRegex.FindString(courseAcronym) == "" {
+    courseAcronym := strings.ToUpper(string(args[0]))
+    csvFile := string(args[1])
+
+    if !teachable.IsValidCourseAcronym(courseAcronym) {
         log.Fatal("Expected valid course acronym but got: ", courseAcronym)
         return
     }
 
+
+    // TODO remove these overrides
     teachable.SecretsFilePath = "teachable_secrets.yml"
     ac.SecretsFilePath = "ac_secrets.yml"
+    gsheetwrap.SecretsFilePath = "gsheet_client_secrets.json"
+
     teachable.DEBUG = false
     ac.DEBUG = false
-
-    // TODO change this
-    gsheetwrap.SecretsFilePath = "gsheet_client_secrets.json"
 
     /******************************************************************
      * Fetching Data
@@ -339,10 +345,9 @@ func main() {
         log.Printf("Fetching enrollments for '%s' course in Teachable...", course.Name)
     }
     start = time.Now()
-    teachableStudents, err := teachable.GetCourseStudents(course.Id)
+    teachableStudents, err := teachable.GetCourseStudentsCsv(csvFile)
     if err != nil {
-        log.Printf("Failed fetching students for course '%s' (id=%d): %s",
-            course.Name, course.Id, err)
+        log.Printf("Failed reading students from CSV file '%s': %s", csvFile, err)
         return
     }
     // De-dupe the list
@@ -352,7 +357,7 @@ func main() {
     studentIdByEmail := make(map[string]string)
     for _, s := range(teachableStudents) {
         if _, ok := studentIdByEmail[s.Email]; !ok {
-            studentIdByEmail[s.Email] = string(s.Id)
+            studentIdByEmail[s.Email] = to.String(s.Id)
             teachableStudentsDeduped = append(teachableStudentsDeduped, s)
         } else {
             //duplicateStudents = append(duplicateStudents, s)
@@ -635,11 +640,13 @@ func main() {
             if !v.IsInAc {
                 isInAc = "No"
                 // Verify everything
+                /*
                 if _, ok := contactIdByEmail[v.Email]; ok {
                     log.Printf("Integrity error: %s is in AC but was marked the opposite",
                         v.Email)
                     return
                 }
+                */
             }
             isInTeachable := "Yes"
             if !v.IsInTeachable {

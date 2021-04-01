@@ -9,6 +9,7 @@ import (
     "fmt"
     "io/ioutil"
     "log"
+    "os"
     "net/http"
     "net/url"
     //"math"
@@ -17,6 +18,7 @@ import (
 
     "github.com/xiam/to"
     "gopkg.in/yaml.v2"
+    "github.com/gocarina/gocsv"
 
     "bitbucket.org/dagoodma/dagoodma-go/util"
 )
@@ -182,6 +184,9 @@ func BuildQueryWithParams(params QueryParameters) (*url.Values, error) {
         q.Set("page", to.String(params.Page))
     }
     if params.CourseId > 0 {
+        // Test adding this to fix queries returning duplicate results
+        q.Set("name_or_email_cont", "___")
+        // 
         q.Set(API_PARAM_ENROLLED_IN, to.String(params.CourseId))
     }
     return &q, nil
@@ -388,8 +393,9 @@ func GetUsersAsync(params QueryParameters) (*ListUsers, error) {
     }
 
     // Receive results from the channel and unmarshal them
-    log.Printf("Unpacking all %d responses...", len(results))
+    //log.Printf("Unpacking all %d responses...", len(results))
     errorCount := 0
+    studentUrlByEmail := make(map[string]string) // checking for errors
     var errorStrings []string
     for _, r := range(results) {
         if r.Error != nil {
@@ -408,6 +414,16 @@ func GetUsersAsync(params QueryParameters) (*ListUsers, error) {
             if DEBUG {
                 log.Printf("Adding %d users to %d users...",
                     len(l.Users), len(resultList))
+            }
+            // Check for duplicates
+            for _, s := range(l.Users) {
+                if _, ok := studentUrlByEmail[s.Email]; !ok {
+                    studentUrlByEmail[s.Email] = r.Url
+                } else {
+                    log.Printf("Error: found duplicate student '%s' in query result: %s;" +
+                               " was originally from query: %s", s.Email, r.Url,
+                               studentUrlByEmail[s.Email])
+                }
             }
             resultList = append(resultList, l.Users...)
         }
@@ -577,6 +593,35 @@ func GetAllCourses() ([]ListCoursesCourse, error) {
     return r.Courses, nil
 }
 
+func IsValidCourseAcronym(acronym string) bool {
+    var courseAcronymRegex = regexp.MustCompile(`^(TAJC|TAJM|EWC|SJC|SJM|ATC|LYS|BUNDLE_TAJC-EWC|TAP_CHALLENGE|TAPCIP)$`)
+    //courseAcronym := strings.ToUpper(acronym)
+
+    if courseAcronymRegex.FindString(acronym) == "" {
+        return false
+    }
+    return true
+}
+
+
+func GetCourseStudentsCsv(csvFile string) ([]ListUsersUser, error) {
+  recordFile, err := os.Open(csvFile)
+  if err != nil {
+      return nil, fmt.Errorf("Failed reading CSV file: %s", err)
+  }
+
+  defer recordFile.Close()
+
+  students := []ListUsersUser{}
+
+  if err := gocsv.UnmarshalFile(recordFile, &students); err != nil {
+      return nil, fmt.Errorf("Error unmarshaling CSV file '%s': %s", csvFile, err)
+  }
+
+  return students, nil
+
+}
+
 // ---------------------- Structs --------------------------
 
 /*
@@ -716,32 +761,32 @@ type ListUsersUser struct {
     PrimaryOwner            bool        `json:"primary_owner?"`
     ShowCustomRoleUpgrade   bool        `json:"show_custom_role_upgrade?"`
     HasZoomCredential       bool        `json:"has_zoom_credential?"`
-    Email                   string      `json:"email"`
+    Email                   string      `json:"email" csv:"email"`
     Notes                   string      `json:"notes"`
-    AffiliateCode           string      `json:"affiliate_code"`
-    Name                    string      `json:"name"`
+    AffiliateCode           string      `json:"affiliate_code" csv:"affiliate_code"`
+    Name                    string      `json:"name" csv:"fullname"`
     IsOwner                 bool        `json:"is_owner"`
-    SignInCount             uint32      `json:"sign_in_count"`
+    SignInCount             uint32      `json:"sign_in_count" csv:"sign_in_count"`
     IsStudent               bool        `json:"is_student"`
     IsAffiliate             bool        `json:"is_affiliate"`
     IsAuthor                bool        `json:"is_author"`
-    Source                  string      `json:"src"`
+    Source                  string      `json:"src" csv:"src"`
     CurrentSignInAt         string      `json:"current_sign_in_at"`
     ConfirmedAt             string      `json:"confirmed_at"`
     LastFour                string      `json:"last_four"`
     PaypalEmail             string      `json:"paypal_email"`
     AffiliateRevenueShare   float32     `json:"affiliate_revenue_share"`
-    JoinedAt                string      `json:"joined_at"`
+    JoinedAt                string      `json:"joined_at" csv:"joined_at"`
     SignedUpAffiliateCode   string      `json:"signed_up_affiliate_code"`
     AuthorRevenueShare      float32     `json:"author_revenue_share"`
     LastSignInIp            string      `json:"last_sign_in_ip"`
     CurrentSignInIp         string      `json:"current_sign_in_ip"`
-    Id                      uint64      `json:"id"`
+    Id                      uint64      `json:"id" csv:"userid"`
     SchoolId                uint64      `json:"school_id"`
     TeachableAccountId      uint64      `json:"teachable_account_id"`
     IsStaffUser             bool        `json:"is_staff_user"`
     AgreeUpdatedPrivacyPolicy       bool    `json:"agree_updated_privacy_policy"`
-    UnsubscribeFromMarketingEmails  bool    `json:"unsubscribe_from_marketing_emails"`
+    UnsubscribeFromMarketingEmails  bool    `json:"unsubscribe_from_marketing_emails" csv:"unsubscribe_from_marketing_emails"`
     Metadata                ListUsersUserMetadata   `json:"meta"`
     TransactionsGross       uint64      `json:"transactions_gross"`
     ShippingAddress         ListUsersUserShippingAddress    `json:"shipping_address"`
@@ -796,7 +841,8 @@ func (l UserSlice) String() string {
 		if i > 0 {
 			userListBuffer.WriteString(", ")
 		}
-		userListBuffer.WriteString(u.Email)
+        str := fmt.Sprintf("%s (ID=%d)", u.Email, u.Id)
+		userListBuffer.WriteString(str)
 	}
 	return userListBuffer.String()
 }

@@ -35,6 +35,7 @@ const (
     API_URL_SUFFIX = "/api/3"
     API_URL_SUBSCRIBERS = "/subscribers"
     API_URL_CONTACTS = "/contacts"
+    API_URL_NOTES = "/notes"
     API_URL_TAGS = "/tags"
     API_URL_AUTOMATIONS = "/automations"
     API_URL_EVENTS = "/events"
@@ -233,7 +234,99 @@ type ApiRequestResult struct {
     Error error
 }
 
-func DoApiRequest(requestUrl string, apiToken string) (*ApiRequestResult) {
+// Handled a POST request with JSON data
+func DoApiRequestPost(requestUrl string, apiToken string, data []byte) (*ApiRequestResult) {
+    r := &ApiRequestResult{Data: nil, Error: nil}
+
+    if DEBUG {
+        log.Println(fmt.Sprintf("Putting data %d to url: %s", requestUrl))
+    }
+
+    client := &http.Client{}
+    req, err := http.NewRequest(http.MethodPost, requestUrl, bytes.NewBuffer(data))
+    if err != nil {
+        r.Error = err
+        return r
+    }
+    req.Header.Set("Content-Type", "application/json; charset=utf-8")
+    //req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("User-Agent", USER_AGENT)
+    req.Header.Set("Api-Token", apiToken)
+
+    resp, err := client.Do(req)
+    if err != nil {
+        r.Error = err
+        return r
+    }
+
+    defer resp.Body.Close()
+
+    //log.Println("response Status:", resp.Status)
+    //log.Println("response Headers:", resp.Header)
+
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        r.Error = err
+        return r
+    }
+    //log.Println("Got body: ", to.String(body))
+
+    if resp.StatusCode != 201 {
+        msg := fmt.Sprintf("Got bad response status '%s', expected: %s", resp.StatusCode, 200)
+        r.Error = errors.New(msg)
+        return r
+    }
+    r.Data = []byte(body)
+    return r
+}
+// Handled a PUT request with JSON data
+func DoApiRequestPut(requestUrl string, apiToken string, data []byte) (*ApiRequestResult) {
+    r := &ApiRequestResult{Data: nil, Error: nil}
+
+    if DEBUG {
+        log.Println(fmt.Sprintf("Putting data %d to url: %s", requestUrl))
+    }
+
+    client := &http.Client{}
+    req, err := http.NewRequest(http.MethodPut, requestUrl, bytes.NewBuffer(data))
+    if err != nil {
+        r.Error = err
+        return r
+    }
+    req.Header.Set("Content-Type", "application/json; charset=utf-8")
+    //req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("User-Agent", USER_AGENT)
+    req.Header.Set("Api-Token", apiToken)
+
+    resp, err := client.Do(req)
+    if err != nil {
+        r.Error = err
+        return r
+    }
+
+    defer resp.Body.Close()
+
+    //log.Println("response Status:", resp.Status)
+    //log.Println("response Headers:", resp.Header)
+
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        r.Error = err
+        return r
+    }
+    //log.Println("Got body: ", to.String(body))
+
+    if resp.StatusCode != 200 {
+        msg := fmt.Sprintf("Got bad response status '%s', expected: %s", resp.StatusCode, 200)
+        r.Error = errors.New(msg)
+        return r
+    }
+    r.Data = []byte(body)
+    return r
+}
+
+
+func DoApiRequestGet(requestUrl string, apiToken string) (*ApiRequestResult) {
     r := &ApiRequestResult{Data: nil, Error: nil}
 
     if DEBUG {
@@ -286,7 +379,7 @@ func FetchAllEndpointDataAsync(u *url.URL, q *url.Values, r ListResponse, apiTok
     q.Set("offset", "0")
     q.Set("limit", to.String(API_LIMIT_MINIMUM))
     u.RawQuery = q.Encode()
-    resp := DoApiRequest(u.String(), apiToken)
+    resp := DoApiRequestGet(u.String(), apiToken)
     if resp.Error != nil {
         return nil, resp.Error
     }
@@ -350,7 +443,7 @@ func FetchAllEndpointDataAsync(u *url.URL, q *url.Values, r ListResponse, apiTok
             // send the request and put the response in a result struct
             // along with the index so we can sort them later along with
             // any error that might have occoured
-            result := DoApiRequest(requestUrl, apiToken)
+            result := DoApiRequestGet(requestUrl, apiToken)
             // now we can send the result struct through the resultsChan
             resultsChan <- result
 
@@ -476,7 +569,7 @@ func GetContacts(params QueryParameters) (*ListContacts, error) {
         }
         u.RawQuery = q.Encode()
         requestUrl := u.String()
-        result := DoApiRequest(requestUrl, apiToken)
+        result := DoApiRequestGet(requestUrl, apiToken)
         if result.Error != nil {
             return nil, result.Error
         }
@@ -551,7 +644,7 @@ func GetContact(params QueryParameters) (*RetrieveContact, error) {
     }
 
     requestUrl := u.String()
-    result := DoApiRequest(requestUrl, apiToken)
+    result := DoApiRequestGet(requestUrl, apiToken)
     if result.Error != nil {
         return nil, result.Error
     }
@@ -667,7 +760,7 @@ func GetTagByName(tag string) (*ListTagsTag, error) {
 
     u.RawQuery = q.Encode()
     requestUrl := u.String()
-    r := DoApiRequest(requestUrl, apiToken)
+    r := DoApiRequestGet(requestUrl, apiToken)
     if r.Error != nil {
         return nil, r.Error
     }
@@ -755,7 +848,7 @@ func GetAutomationContacts(automation *ListAutomationsAutomation) ([]ListContact
     q := &url.Values{}
     q.Set("limit", to.String(API_LIMIT_MAXIMUM))
     requestUrl := u.String()
-    r := DoApiRequest(requestUrl, apiToken)
+    r := DoApiRequestGet(requestUrl, apiToken)
     if r.Error != nil {
         return nil, r.Error
     }
@@ -836,7 +929,7 @@ func GetAutomationContactsInfo(contacts []ListContactAutomationsContact) ([]List
             // send the request and put the response in a result struct
             // along with the index so we can sort them later along with
             // any error that might have occoured
-            r := DoApiRequest(requestUrl, apiToken)
+            r := DoApiRequestGet(requestUrl, apiToken)
             // now we can send the result struct through the resultsChan
             resultsChan <- r
 
@@ -989,7 +1082,7 @@ func GetTag(id string) (*RetrieveTag, error) {
     //q := &url.Values{}
     //q.Set("limit", to.String(API_LIMIT_MAXIMUM))
     requestUrl := u.String()
-    r := DoApiRequest(requestUrl, apiToken)
+    r := DoApiRequestGet(requestUrl, apiToken)
     if r.Error != nil {
         return nil, fmt.Errorf("Failed retrieving tag with ID %s: %s", id, r.Error)
     }
@@ -1041,7 +1134,7 @@ func GetTagsAsync(ids []string) ([]RetrieveTag, error) {
             }
             // Do request
             requestUrl := u.String()
-            r := DoApiRequest(requestUrl, apiToken)
+            r := DoApiRequestGet(requestUrl, apiToken)
             resultsChan <- r
             <-semaphoreChan
         }(i)
@@ -1106,7 +1199,7 @@ func GetContactTags(id string) ([]RetrieveTag, error) {
     //q := &url.Values{}
     //q.Set("limit", to.String(API_LIMIT_MAXIMUM))
     requestUrl := u.String()
-    r := DoApiRequest(requestUrl, apiToken)
+    r := DoApiRequestGet(requestUrl, apiToken)
     if r.Error != nil {
         return nil, fmt.Errorf("Failed retrieving list of contact tags" +
             " for contact with ID %s: %s", id, r.Error)
@@ -1167,9 +1260,127 @@ func GetContact(id string) (error {
 
 */
 
+//func UpdateContact(id string,  
+func UpdateContactEmail(id string, newEmail string) error {
+    apiUrl, apiToken := GetApiCredentials()
+    // Build request URL
+    u, err := BuildRequestUrl(apiUrl, API_URL_CONTACTS, id)
+    if err != nil {
+        return fmt.Errorf("Failed building request url: %s", err)
+    }
+
+    // Build request data
+    var c UpdateContact
+    c.Contact.Email = newEmail;
+    json, err := json.Marshal(c)
+    if err != nil {
+        return fmt.Errorf("Failed marshaling update contact request data: %s", err)
+    }
+
+    // Send request
+    requestUrl := u.String()
+    r := DoApiRequestPut(requestUrl, apiToken, json)
+    if r.Error != nil {
+        return fmt.Errorf("Failed updating data for contact with ID %s: %s",
+            id, r.Error)
+    }
+
+    // Unmarshal the message metedata
+    //l := &ListContactTags{}
+    //err = json.Unmarshal(r.Data, &l)
+    //if err != nil {
+    //    return nil, fmt.Errorf("Failed to unmarshal response data: %s", err)
+    //}
+    return nil
+}
+
 /*
  * Messages and unmarshalers
  */
+// Update a contact by ID
+type UpdateContact struct {
+    Contact     UpdateContactContact    `json:"contact"`
+}
+
+type _UpdateContact UpdateContact
+
+type UpdateContactContact struct {
+    Email       string      `json:"email"`
+    FirstName   string      `json:"firstName"`
+    LastName    string      `json:"lastName"`
+    Phone       string      `json:"phone"`
+    //FieldValues string      `json:"fieldValues"`
+}
+
+func (c *UpdateContact) MarshalJSON() ([]byte, error) {
+    json, err := json.Marshal(c)
+    if err != nil {
+        return nil, err
+    }
+
+    return json, nil
+}
+
+func AddNoteToContact(id string, note string) error {
+    apiUrl, apiToken := GetApiCredentials()
+    // Build request URL
+    u, err := BuildRequestUrl(apiUrl, API_URL_NOTES)
+    if err != nil {
+        return fmt.Errorf("Failed building request url: %s", err)
+    }
+
+    // Build request data
+    var n CreateNote
+    n.Note.Note = note;
+    n.Note.RelativeId = id;
+    n.Note.RelativeType = "Subscriber"
+    json, err := json.Marshal(n)
+    if err != nil {
+        return fmt.Errorf("Failed marshaling create note request data: %s", err)
+    }
+
+    // Send request
+    requestUrl := u.String()
+    fmt.Printf("Here with url: %s", requestUrl)
+    r := DoApiRequestPost(requestUrl, apiToken, json)
+    if r.Error != nil {
+        return fmt.Errorf("Failed creating note for contact with ID %s: %s",
+            id, r.Error)
+    }
+
+    // Unmarshal the message metedata
+    //l := &ListContactTags{}
+    //err = json.Unmarshal(r.Data, &l)
+    //if err != nil {
+    //    return nil, fmt.Errorf("Failed to unmarshal response data: %s", err)
+    //}
+    return nil
+}
+
+/*
+ * Messages and unmarshalers
+ */
+// Update a contact by ID
+type CreateNote struct {
+    Note     CreateNoteNote    `json:"note"`
+}
+
+type CreateNoteNote struct {
+    Note            string      `json:"note"`
+    RelativeId      string      `json:"relid"`
+    RelativeType    string      `json:"reltype"`
+}
+
+func (n *CreateNote) MarshalJSON() ([]byte, error) {
+    json, err := json.Marshal(n)
+    if err != nil {
+        return nil, err
+    }
+
+    return json, nil
+}
+
+
 // Retrieve a contact by ID
 type RetrieveContact struct {
     Automations         []RetrieveContactAutomation        `json:"contactAutomations"`
@@ -1518,6 +1729,27 @@ type ListContactsContact struct {
     Organization        string   `json:"organization"`
 
 }
+
+type ContactList []*ListContactsContact
+
+func (l *ContactList) Contains(email string) bool {
+    email = strings.ToLower(email)
+	for _, c := range *l {
+		if strings.ToLower(c.Email) == email {
+            return true
+		}
+	}
+	return false
+}
+
+func GetContactList(l []ListContactsContact) ContactList {
+    var l2 ContactList
+    for i := 0; i < len(l); i++ {
+        l2 = append(l2, &l[i])
+    }
+    return l2
+}
+
 
 func (c *ListContactsContact) String() string {
 	var strBuffer bytes.Buffer

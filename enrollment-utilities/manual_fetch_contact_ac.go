@@ -44,24 +44,32 @@ func main() {
     start := time.Now()
 
     //var contact = new(ac.RetrieveContact{})
+    var contact *ac.RetrieveContact
+    var err error
     if regexEmail.FindString(emailOrId) != "" {
-        contact, err := ac.GetContactByEmail(emailOrId)
+        c1, err := ac.GetContactByEmail(emailOrId)
         if err != nil {
             log.Printf("Error retrieving contact with email '%s': %s\n", emailOrId, err)
             return
         }
-        log.Printf("Got contact: %#v", contact)
+        contact, err = ac.GetContactById(c1.Id)
+        if err != nil {
+            log.Printf("Error retrieving contact details with email '%s'" +
+                       " (id=%s): %s\n", emailOrId, c1.Id, err)
+            return
+        }
     } else if regexId.FindString(emailOrId) != "" {
-        contact, err := ac.GetContactById(emailOrId)
+        contact, err = ac.GetContactById(emailOrId)
         if err != nil {
             log.Printf("Error retrieving contact with ID %s: %s\n", emailOrId, err)
             return
         }
-        log.Printf("Got contact: %#v", contact)
     } else {
         log.Fatal("Expected an email address or an ID, but got: %s", emailOrId)
         return
     }
+    log.Printf("Got contact: %s\n", contact)
+    // TODO Get contact tags
     duration := time.Since(start)
     log.Printf("Found contact in: %v", duration)
 }

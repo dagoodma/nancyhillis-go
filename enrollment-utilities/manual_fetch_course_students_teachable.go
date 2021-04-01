@@ -85,6 +85,24 @@ func main() {
             course.Name, course.Id, err)
         return
     }
+
+    // Check for duplicates in list
+    var duplicateStudents []teachable.ListUsersUser
+    studentIdByEmail := make(map[string]string)
+    for _, s := range(students) {
+        if _, ok := studentIdByEmail[s.Email]; !ok {
+            studentIdByEmail[s.Email] = string(s.Id)
+        } else {
+            duplicateStudents = append(duplicateStudents, s)
+        }
+    }
+    if len(duplicateStudents) > 0 {
+        fmt.Printf("WARNING: Got %d duplicate students in Teachable from list of %d students:",
+            len(duplicateStudents), len(students))
+        for _, v := range(duplicateStudents) {
+            fmt.Printf("%s, ", v.Email)
+        }
+    }
     duration = time.Since(start)
     log.Printf("Got %d Teachable students in course with acronym '%s' in: %v",
         len(students), courseAcronym, duration)

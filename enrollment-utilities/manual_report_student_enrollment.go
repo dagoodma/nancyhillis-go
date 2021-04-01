@@ -98,19 +98,6 @@ func main() {
     duration := time.Since(start)
     log.Printf("Found user in: %v", duration)
 
-    /*
-    // Now get the user's enrollments
-    enrollments, err := teachable.GetUserEnrollments(user.Id)
-    if err != nil {
-        log.Printf("Failed fetching enrollments for user '%s': %s\n", emailOrId, err)
-        return
-    }
-    duration = time.Since(start)
-    log.Printf("Found user enrollments in: %v", duration)
-
-    log.Printf("Enrollments for user '%s':", emailOrId)
-    for i := range(enrollments) {
-        fmt.Println(&enrollments[i])
-    }
-    */
+    log.Println("Active Campaign profile: ", ac.GetContactProfileUrlById(contact.Id))
+    log.Println("Teachable profile: ", teachable.GetUserProfileUrlById(user.Id))
 }
