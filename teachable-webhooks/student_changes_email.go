@@ -13,7 +13,7 @@ import (
 )
 
 // TODO support fetching this and remove hard coded id
-var ChangedEmailCustomFieldId = 71
+var ChangedEmailCustomFieldId = "71"
 
 func main() {
 	// Get the args
