@@ -12,6 +12,9 @@ import (
 	ac "bitbucket.org/dagoodma/nancyhillis-go/activecampaign"
 )
 
+// TODO support fetching this and remove hard coded id
+var ChangedEmailCustomFieldId = 71
+
 func main() {
 	// Get the args
 	argsWithProg := os.Args
@@ -85,7 +88,7 @@ func main() {
             needMerge = true
             // Found them in AC, can't update their email automatically
             // TODO add them to the automation and set the field
-            err = ac.UpdateContactCustomField(c1.Id, "changed_email_to", newEmail)
+            err = ac.UpdateContactCustomField(c1.Id, ChangedEmailCustomFieldId , newEmail)
             if err != nil {
                 util.ReportWebhookFailure(w, fmt.Sprintf("Failed to set custom field to update contact '%s' who needs merge with '%s': %s",
                     oldEmail, newEmail, err))
