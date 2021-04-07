@@ -1294,6 +1294,45 @@ func UpdateContactEmail(id string, newEmail string) error {
     return nil
 }
 
+// TODO create one UpdateContact function, unmarshal response, and all these functions will call it
+func UpdateContactCustomField(id string, field string, value string) error {
+    apiUrl, apiToken := GetApiCredentials()
+    // Build request URL
+    u, err := BuildRequestUrl(apiUrl, API_URL_CONTACTS, id)
+    if err != nil {
+        return fmt.Errorf("Failed building request url: %s", err)
+    }
+
+    // Build request data
+    var c UpdateContact
+    f := UpdateContactContactFieldValue {
+        Field: "changed_email_to",
+        Value: newEmail
+    }
+
+    c.Contact.FieldValues = append(c.Contact.FieldValues, f)
+    json, err := json.Marshal(c)
+    if err != nil {
+        return fmt.Errorf("Failed marshaling update contact request data: %s", err)
+    }
+
+    // Send request
+    requestUrl := u.String()
+    r := DoApiRequestPut(requestUrl, apiToken, json)
+    if r.Error != nil {
+        return fmt.Errorf("Failed updating data for contact with ID %s: %s",
+            id, r.Error)
+    }
+
+    // Unmarshal the message metedata
+    //l := &ListContactTags{}
+    //err = json.Unmarshal(r.Data, &l)
+    //if err != nil {
+    //    return nil, fmt.Errorf("Failed to unmarshal response data: %s", err)
+    //}
+    return nil
+}
+
 /*
  * Messages and unmarshalers
  */
@@ -1309,7 +1348,12 @@ type UpdateContactContact struct {
     FirstName   string      `json:"firstName"`
     LastName    string      `json:"lastName"`
     Phone       string      `json:"phone"`
-    //FieldValues string      `json:"fieldValues"`
+    FieldValues []UpdateContactContactFieldValue    `json:"fieldValues"`
+}
+
+type UpdateContactContactFieldValue struct {
+    Field string    `json:"field"`
+    Value string    `json:"value"`
 }
 
 func (c *UpdateContact) MarshalJSON() ([]byte, error) {

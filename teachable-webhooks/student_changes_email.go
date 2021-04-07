@@ -80,24 +80,35 @@ func main() {
             return
         }
         _, err = ac.GetContactByEmail(newEmail)
+        needMerge = false
         if err == nil {
+            needMerge = true
             // Found them in AC, can't update their email automatically
             // TODO add them to the automation and set the field
-            //err = ac.UpdateContactCustomFields(c1.Id, customFields)
-            util.ReportWebhookFailure(w, fmt.Sprintf("Update contact '%s' who needs merge with '%s': NOT IMPLEMENTED",
-                    oldEmail, newEmail))
-            return
+            err = ac.UpdateContactCustomField(c1.Id, "changed_email_to", newEmail)
+            if err != nil {
+                util.ReportWebhookFailure(w, fmt.Sprintf("Failed to set custom field to update contact '%s' who needs merge with '%s': %s",
+                    oldEmail, newEmail, err))
+                return
+            }
         }
 
-        err = ac.UpdateContactEmail(c1.Id, newEmail)
-        if err != nil {
-            util.ReportWebhookFailure(w, fmt.Sprintf("Failed to update '%s' (%s) email to '%s': %s",
-                oldEmail, c1.Id, newEmail, err))
-            return
-        }
-
-        message := fmt.Sprintf("Webhook updated contact '%s' (%s) email from '%s' to: %s",
+        var message string
+        if !needMerge {
+            err = ac.UpdateContactEmail(c1.Id, newEmail)
+            if err != nil {
+                util.ReportWebhookFailure(w, fmt.Sprintf("Failed to update '%s' (%s) email to '%s': %s",
+                    oldEmail, c1.Id, newEmail, err))
+                return
+            }
+            message = fmt.Sprintf("Webhook updated contact '%s' (%s) email from '%s' to: %s",
             name, c1.Id, oldEmail, newEmail)
+        } else {
+            message = fmt.Sprintf("Webhook found conflict for contact (%s) email" +
+                " who changed from '%s' to '%s'. See email notification for instructions.",
+                c1.Id, oldEmail, newEmail)
+        }
+
         err = ac.AddNoteToContact(c1.Id, message)
         if err != nil {
             log.Printf("Failed to add note to contact (%s): %s", c1.Id, err)
