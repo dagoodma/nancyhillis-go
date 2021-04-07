@@ -80,7 +80,7 @@ func main() {
             return
         }
         _, err = ac.GetContactByEmail(newEmail)
-        needMerge = false
+        needMerge := false
         if err == nil {
             needMerge = true
             // Found them in AC, can't update their email automatically

@@ -1305,9 +1305,9 @@ func UpdateContactCustomField(id string, field string, value string) error {
 
     // Build request data
     var c UpdateContact
-    f := UpdateContactContactFieldValue {
-        Field: "changed_email_to",
-        Value: newEmail
+    var f = UpdateContactContactFieldValue {
+        Field: field,
+        Value: value,
     }
 
     c.Contact.FieldValues = append(c.Contact.FieldValues, f)
