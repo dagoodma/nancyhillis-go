@@ -88,7 +88,7 @@ func main() {
             needMerge = true
             // Found them in AC, can't update their email automatically
             // TODO add them to the automation and set the field
-            err = ac.UpdateContactCustomField(c1.Id, ChangedEmailCustomFieldId , newEmail)
+            err = ac.UpdateContactCustomField(c1, ChangedEmailCustomFieldId , newEmail)
             if err != nil {
                 util.ReportWebhookFailure(w, fmt.Sprintf("Failed to set custom field to update contact '%s' who needs merge with '%s': %s",
                     oldEmail, newEmail, err))
@@ -105,8 +105,14 @@ func main() {
                 return
             }
             message = fmt.Sprintf("Webhook updated contact '%s' (%s) email from '%s' to: %s",
-            name, c1.Id, oldEmail, newEmail)
+                name, c1.Id, oldEmail, newEmail)
         } else {
+            err = ac.UpdateContactCustomField(c1, ChangedEmailCustomFieldId, newEmail)
+            if err != nil {
+                util.ReportWebhookFailure(w, fmt.Sprintf("Failed to update email changed field for '%s' (%s) to '%s' for manual merge: %s",
+                    oldEmail, c1.Id, newEmail, err))
+                return
+            }
             message = fmt.Sprintf("Webhook found conflict for contact (%s) email" +
                 " who changed from '%s' to '%s'. See email notification for instructions.",
                 c1.Id, oldEmail, newEmail)

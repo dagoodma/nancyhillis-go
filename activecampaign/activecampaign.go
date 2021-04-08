@@ -21,7 +21,7 @@ import (
     "bitbucket.org/dagoodma/dagoodma-go/util"
 )
 
-var DEBUG = false
+var DEBUG = true
 var DEBUG_VERBOSE = false
 var SAVE_API_KEY = true // whether to save and re-use the API key
 
@@ -153,8 +153,7 @@ func AuthenticateWithCredentials(url string, apiToken string) error {
     _ = body
 
     if resp.StatusCode != 200 {
-        msg := fmt.Sprintf("Got bad response status '%s', expected: %s", resp.StatusCode, 200)
-        return errors.New(msg)
+        return HandleBadResponse(resp, body, 200)
     }
 
     return nil
@@ -239,7 +238,7 @@ func DoApiRequestPost(requestUrl string, apiToken string, data []byte) (*ApiRequ
     r := &ApiRequestResult{Data: nil, Error: nil}
 
     if DEBUG {
-        log.Println(fmt.Sprintf("Putting data %d to url: %s", requestUrl))
+        log.Printf("Putting %d bytes of data to url: %s", len(data), requestUrl)
     }
 
     client := &http.Client{}
@@ -272,8 +271,7 @@ func DoApiRequestPost(requestUrl string, apiToken string, data []byte) (*ApiRequ
     //log.Println("Got body: ", to.String(body))
 
     if resp.StatusCode != 201 {
-        msg := fmt.Sprintf("Got bad response status '%s', expected: %s", resp.StatusCode, 200)
-        r.Error = errors.New(msg)
+        r.Error = HandleBadResponse(resp, body, 200)
         return r
     }
     r.Data = []byte(body)
@@ -284,7 +282,7 @@ func DoApiRequestPut(requestUrl string, apiToken string, data []byte) (*ApiReque
     r := &ApiRequestResult{Data: nil, Error: nil}
 
     if DEBUG {
-        log.Println(fmt.Sprintf("Putting data %d to url: %s", requestUrl))
+        log.Printf("Putting %d bytes of data to url: %s", len(data), requestUrl)
     }
 
     client := &http.Client{}
@@ -317,8 +315,7 @@ func DoApiRequestPut(requestUrl string, apiToken string, data []byte) (*ApiReque
     //log.Println("Got body: ", to.String(body))
 
     if resp.StatusCode != 200 {
-        msg := fmt.Sprintf("Got bad response status '%s', expected: %s", resp.StatusCode, 200)
-        r.Error = errors.New(msg)
+        r.Error = HandleBadResponse(resp, body, 200)
         return r
     }
     r.Data = []byte(body)
@@ -362,12 +359,43 @@ func DoApiRequestGet(requestUrl string, apiToken string) (*ApiRequestResult) {
     //log.Println("Got body: ", to.String(body))
 
     if resp.StatusCode != 200 {
-        msg := fmt.Sprintf("Got bad response status '%s', expected: %s", resp.StatusCode, 200)
-        r.Error = errors.New(msg)
+        r.Error = HandleBadResponse(resp, body, 200)
         return r
     }
     r.Data = []byte(body)
     return r
+}
+
+func HandleBadResponse(resp *http.Response, body []byte, expectedStatusCode int) error {
+    if DEBUG && DEBUG_VERBOSE {
+        log.Printf("Response: %+v", resp)
+        log.Printf("Data (%d bytes): %+v", resp.ContentLength, string(body))
+    }
+    var message string
+    switch resp.StatusCode {
+    case 422:
+        errorResponse := &ErrorResponse{}
+        // Unmarshal the message metedata
+        err := json.Unmarshal([]byte(body), errorResponse)
+        if err != nil {
+            return fmt.Errorf("Failed to unmarshal error response (%s) from data: %s",
+                resp.Status, err)
+        }
+        message = fmt.Sprintf("(%d): %s", resp.StatusCode, errorResponse)
+    case 401:
+        errorMessage := &ErrorMessage{}
+        // Unmarshal the message metedata
+        err := json.Unmarshal([]byte(body), errorMessage)
+        if err != nil {
+            return fmt.Errorf("Failed to unmarshal error message (%s) from data: %s",
+                resp.Status, err)
+        }
+        message = fmt.Sprintf("(%d): %s", resp.StatusCode, errorMessage)
+    default:
+        message = fmt.Sprintf("Unknown error response status '%d', expected: %d", resp.StatusCode, expectedStatusCode)
+    }
+
+    return errors.New(message)
 }
 
 // r, the ListResponse interface, will be populated, but the list within will be missing data
@@ -1295,10 +1323,10 @@ func UpdateContactEmail(id string, newEmail string) error {
 }
 
 // TODO create one UpdateContact function, unmarshal response, and all these functions will call it
-func UpdateContactCustomField(id string, field string, value string) error {
+func UpdateContactCustomField(contact *ListContactsContact, field string, value string) error {
     apiUrl, apiToken := GetApiCredentials()
     // Build request URL
-    u, err := BuildRequestUrl(apiUrl, API_URL_CONTACTS, id)
+    u, err := BuildRequestUrl(apiUrl, API_URL_CONTACTS, contact.Id)
     if err != nil {
         return fmt.Errorf("Failed building request url: %s", err)
     }
@@ -1310,6 +1338,7 @@ func UpdateContactCustomField(id string, field string, value string) error {
         Value: value,
     }
 
+    c.Contact.Email = contact.Email
     c.Contact.FieldValues = append(c.Contact.FieldValues, f)
     json, err := json.Marshal(c)
     if err != nil {
@@ -1321,7 +1350,7 @@ func UpdateContactCustomField(id string, field string, value string) error {
     r := DoApiRequestPut(requestUrl, apiToken, json)
     if r.Error != nil {
         return fmt.Errorf("Failed updating data for contact with ID %s: %s",
-            id, r.Error)
+            contact.Id, r.Error)
     }
 
     // Unmarshal the message metedata
@@ -2160,3 +2189,90 @@ func GetAutomationContactList(l []ListContactAutomationsContact) AutomationConta
     return l2
 }
 
+// Errors
+// for 401 errors
+type ErrorMessage struct {
+    Message     string      `json:"message"`
+}
+
+type _ErrorMessage ErrorMessage
+
+func (e *ErrorMessage) UnmarshalJSON(jsonStr []byte) error {
+    e2 := _ErrorMessage{}
+
+    err := json.Unmarshal(jsonStr, &e2)
+    if err != nil {
+        return err
+    }
+
+    *e = ErrorMessage(e2)
+
+    return nil
+}
+
+func (e *ErrorMessage) String() string {
+    return e.Message
+}
+
+// for 422 errors
+type ErrorResponse struct {
+    Errors []ErrorResponseError
+}
+
+type _ErrorResponse ErrorResponse
+
+type ErrorResponseError struct {
+    Title       string  `json:"title"`
+    Detail      string  `json:"detail"`
+    Code        string  `json:"code"`
+    Error       string  `json:"error"`
+    Source      ErrorResponseErrorSource    `json:"source"`
+}
+
+type ErrorResponseErrorSource struct {
+    Pointer     string `json:"pointer"`
+}
+
+func (e *ErrorResponse) UnmarshalJSON(jsonStr []byte) error {
+    e2 := _ErrorResponse{}
+
+    err := json.Unmarshal(jsonStr, &e2)
+    if err != nil {
+        return err
+    }
+
+    *e = ErrorResponse(e2)
+
+    return nil
+}
+
+func (l *ErrorResponse) String() string {
+	var errorBuffer bytes.Buffer
+    errorBuffer.WriteString("Error(s): [")
+	for i, e := range l.Errors {
+		if i > 0 {
+			errorBuffer.WriteString("; ")
+		}
+        if len(e.Title) > 0 {
+            errorBuffer.WriteString("\"")
+            errorBuffer.WriteString(e.Title)
+            errorBuffer.WriteString("\"")
+        }
+        if len(e.Code) > 0 {
+            if len(e.Title) > 0 {
+                errorBuffer.WriteString(" -- ")
+            }
+            errorBuffer.WriteString("code: ")
+            errorBuffer.WriteString(e.Code)
+        }
+        if len(e.Error) > 0 {
+            if len(e.Code) > 0 {
+                errorBuffer.WriteString(", ")
+            }
+            errorBuffer.WriteString("reason: ")
+            errorBuffer.WriteString(e.Error)
+        }
+	}
+    errorBuffer.WriteString("]")
+	return errorBuffer.String()
+}
