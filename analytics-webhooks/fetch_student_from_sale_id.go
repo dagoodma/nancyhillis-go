@@ -45,28 +45,15 @@ func main() {
 	w := util.NewWebhookEvent(programName, header, data)
 	util.RecordWebhookStarted(w)
 
-	// Unmarshall the header and ensure its correct
-	h := &teachable.WebhookHeader{}
-	err := json.Unmarshal(header, &h)
-	if err != nil {
-        util.ReportWebhookFailure(w, fmt.Sprintf("Failed unmarshaling header: %s", err))
-		return
-	}
-	err = teachable.EnsureValidWebhook(h, data)
-	if err != nil {
-        util.ReportWebhookFailure(w, fmt.Sprintf("Failed validating webhook: %s", err))
-		return
-	}
-
 	// Unmarshal the input data
 	m := make(map[string]string)
-	err = json.Unmarshal(data, &m)
+  err := json.Unmarshal(data, &m)
 	if err != nil {
 		HandleError("Error while parsing input data for '%s'. %v", data, err)
 		return
 	}
 
-  // Read the request
+  // Read the request and validate
   var regexId = regexp.MustCompile(`^\d+$`)
 	saleId, ok := m["sale_id"]
 	studentEmail := ""
@@ -75,6 +62,7 @@ func main() {
 			HandleError("Invalid sale ID provided")
 			return
     }
+    // Fetch the sale info from Teachable
     sale, err := teachable.GetSaleById(saleId)
     if err != nil {
 			HandleError("Error retrieving sale with ID %s: %s\n", saleId, err)
