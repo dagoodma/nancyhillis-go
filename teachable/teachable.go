@@ -622,6 +622,34 @@ func GetCourseStudentsCsv(csvFile string) ([]ListUsersUser, error) {
 
 }
 
+func GetSaleById(id string) (*RetrieveSale, error) {
+    apiUrl, apiCredentials := GetApiCredentials()
+    var p QueryParameters
+    p.Id = to.Uint64(id)
+
+    // Build request URL
+    u, err := BuildRequestUrl(apiUrl, API_URL_SALES, to.String(p.Id))
+    if err != nil {
+        return nil, fmt.Errorf("Failed building request url: %s", err)
+    }
+
+    requestUrl := u.String()
+    result := DoApiRequest(requestUrl, apiCredentials)
+    if result.Error != nil {
+        return nil, result.Error
+    }
+
+    // Unmarshal the message
+    r := &RetrieveSale{}
+    err = json.Unmarshal(result.Data, &r)
+    if err != nil {
+        return nil, fmt.Errorf("Failed to unmarshal response data: %s", err)
+    }
+
+    return r, nil
+}
+
+
 // ---------------------- Structs --------------------------
 
 /*
@@ -1247,3 +1275,50 @@ func (c *RetrieveCourse) String() string {
     }
     return strBuffer.String()
 }
+
+// Get sale 
+type RetrieveSale struct {
+    CreatedAt               string      `json:"created_at"`
+    VatRate                 float32      `json:"vat_rate"`
+    SubscriptionAmountToBill  uint32    `json:"subscription_amount_to_bill"`
+    SubscriptionStatus      string      `json:"subscription_status"`
+    ProductId               uint64      `json:"product_id"`
+    UserId                  uint64      `json:"user_id"`
+    IsActive                bool        `json:"is_active"`
+    //CurrentPeriodStart      string      `json:"current_period_start"`
+    //CurrentPeriodEnd        string      `json:"current_period_end"`
+    IsRecurring             bool        `json:"is_recurring"`
+    Currency                string      `json:"currency"`
+    PaymentMethod           string      `json:"payment_method"`
+    PurchasedAt             string      `json:"purchased_at"`
+    Country                 string      `json:"country"`
+    NextPeriodStart         string      `json:"next_period_start"`
+    NumberOfPaymentRequired uint32      `json:"num_payments_required"`
+    FullyPaidPlan           bool        `json:"fully_paid_plan"`
+    //VatTaxId                vat_tax_id
+    Id                      uint64      `json:"id"`
+    //Metadata              RetrieveSaleMetadata   `json:"meta"`
+    //Product               RetrieveSaleProduct   `json:"product"`
+    //Coupon                RetrieveSaleCoupon   `json:"coupon"`
+    //Transactions          RetrieveSaleTransactions   `json:"transactions"`
+    User                    ListUsersUser   `json:"user"`
+    //Enrollments             []ListEnrollmentsEnrollment   `json:"enrollments"`
+}
+
+type _RetrieveSale RetrieveSale
+
+//type RetrieveSaleMetadata ListUsersMetadata
+
+func (s *RetrieveSale) UnmarshalJSON(jsonStr []byte) error {
+    s2 := _RetrieveSale{}
+
+    err := json.Unmarshal(jsonStr, &s2)
+    if err != nil {
+        return err
+    }
+
+    *s = RetrieveSale(s2)
+
+    return nil
+}
+
