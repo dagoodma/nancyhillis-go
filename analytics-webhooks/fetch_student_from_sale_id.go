@@ -12,7 +12,7 @@ import (
 	teachable "bitbucket.org/dagoodma/nancyhillis-go/teachable"
 )
 
-var Debug = true
+var Debug = false
 
 // Json object to hold the result
 type EmailResult struct {
