@@ -15,9 +15,11 @@ import (
 var Debug = false
 
 // Json object to hold the result
+/*
 type EmailResult struct {
 	Result string `json:"result,string"`
 }
+*/
 
 func main() {
 	// Get the args
@@ -75,15 +77,23 @@ func main() {
   }
 
 	// Marshall data and return result
+  /*
 	result := EmailResult{Result: studentEmail}
 	r, err := json.Marshal(result)
 	if err != nil {
 		HandleError("Failed building student info response. %v", err)
 		return
 	}
+  */
 
 	// Send response to JS client
 	fmt.Println(string(r))
+	return
+
+	// Return result
+	r := make(map[string]interface{})
+	r["result"] = studentEmail
+	util.PrintJsonObject(r)
 	return
 }
 
