@@ -23,7 +23,7 @@ var ConversionSpreadsheetId = "1Azq9IHETxibYE8rzLK-DqJVSmNP3Oswoycr-V6hAuLc"
 
 // Json object to hold the result
 type NotifyResult struct {
-	Result string `json:"result,string"`
+	Result bool `json:"result,bool"`
 }
 
 func main() {
