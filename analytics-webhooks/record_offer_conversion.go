@@ -57,6 +57,15 @@ func main() {
 		return
 	}
 
+	// Unmarshal the header data
+	h := make(map[string]string)
+  err := json.Unmarshal(header, &h)
+	if err != nil {
+		HandleError("Error while parsing header for '%s'. %v", header, err)
+		return
+	}
+	ua, ok := h["User-Agent"]
+
   // Read the request and validate
   var regexKey = regexp.MustCompile(`^[a-z_]*$`)
   var regexPath = regexp.MustCompile(`^\/.+$`)
@@ -102,7 +111,7 @@ func main() {
     return
   }
   sheet, err := ss.SheetByIndex(0)
-  err = gsheetwrap.AddRowToSheet(sheet, []string{ts, key, category, name, path, source})
+  err = gsheetwrap.AddRowToSheet(sheet, []string{ts, key, category, name, path, source, ua})
   if err != nil {
 		HandleError("Error while adding row to spreadsheet. %v", err)
     return
@@ -116,7 +125,8 @@ func main() {
 		return
 	}
 	// Send response to JS client
-	fmt.Println(string(r))
+	util.PrintJsonObject(r)
+	//fmt.Println(string(r))
 	return
 
   /*
