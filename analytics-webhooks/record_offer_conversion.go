@@ -22,9 +22,11 @@ var GoogleSheetSleepTime, _ = time.ParseDuration("0.5s")
 var ConversionSpreadsheetId = "1Azq9IHETxibYE8rzLK-DqJVSmNP3Oswoycr-V6hAuLc"
 
 // Json object to hold the result
+/*
 type NotifyResult struct {
 	Result bool `json:"result,bool"`
 }
+*/
 
 func main() {
 	// Get the args
@@ -59,7 +61,7 @@ func main() {
 
 	// Unmarshal the header data
 	h := make(map[string]string)
-  err := json.Unmarshal(header, &h)
+  err = json.Unmarshal(header, &h)
 	if err != nil {
 		HandleError("Error while parsing header for '%s'. %v", header, err)
 		return
@@ -118,6 +120,7 @@ func main() {
   }
 
 	// Marshall data and return result
+  /*
 	result := NotifyResult{Result: true}
 	r, err := json.Marshal(result)
 	if err != nil {
@@ -125,17 +128,15 @@ func main() {
 		return
 	}
 	// Send response to JS client
-	util.PrintJsonObject(r)
-	//fmt.Println(string(r))
+	fmt.Println(string(r))
 	return
+  */
 
-  /*
 	// Return result
 	r := make(map[string]interface{})
 	r["result"] = true
 	util.PrintJsonObject(r)
 	return
-  */
 }
 
 func HandleError(format string, args ...interface{}) {
