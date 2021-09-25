@@ -29,7 +29,8 @@ func main() {
 			3, len(argsWithProg))
 	}
 
-  gsheetwrap.SecretsFilePath = "gsheet_client_secrets.json"
+  // Uncomment for testing:
+  //gsheetwrap.SecretsFilePath = "gsheet_client_secrets.json"
   // Local secrets?
   if _, err := os.Stat("slack_secrets.yml"); !os.IsNotExist(err) {
       log.Println("Got local slack secrets.")
