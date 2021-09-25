@@ -21,6 +21,11 @@ var GoogleSheetSleepTime, _ = time.ParseDuration("0.5s")
 
 var ConversionSpreadsheetId = "1Azq9IHETxibYE8rzLK-DqJVSmNP3Oswoycr-V6hAuLc"
 
+// Json object to hold the result
+type NotifyResult struct {
+	Result string `json:"result,string"`
+}
+
 func main() {
 	// Get the args
 	argsWithProg := os.Args
@@ -104,20 +109,23 @@ func main() {
   }
 
 	// Marshall data and return result
-  /*
-	result := EmailResult{Result: studentEmail}
+	result := NotifyResult{Result: true}
 	r, err := json.Marshal(result)
 	if err != nil {
-		HandleError("Failed building student info response. %v", err)
+		HandleError("Failed building notify response. %v", err)
 		return
 	}
-  */
+	// Send response to JS client
+	fmt.Println(string(r))
+	return
 
+  /*
 	// Return result
 	r := make(map[string]interface{})
 	r["result"] = true
 	util.PrintJsonObject(r)
 	return
+  */
 }
 
 func HandleError(format string, args ...interface{}) {
