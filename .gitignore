@@ -6,3 +6,4 @@
 *.swp
 *.swo
 *_secrets.yml
+*_secrets.json
