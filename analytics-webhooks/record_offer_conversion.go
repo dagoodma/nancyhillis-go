@@ -69,7 +69,7 @@ func main() {
 	ua, ok := h["User-Agent"]
 
   // Read the request and validate
-  var regexKey = regexp.MustCompile(`^[a-z_]*$`)
+  var regexKey = regexp.MustCompile(`^[a-zA-Z\d_]*$`)
   var regexPath = regexp.MustCompile(`^\/.+$`)
 	key, ok := m["key"]
 	if !ok || len(key) <= 0 {
