@@ -77,7 +77,8 @@ func (c *SecretsConfig) GetSecrets(filePath string) (error) {
 
     yamlFile, err := ioutil.ReadFile(filePath)
     if err != nil {
-        log.Printf("Failed reading screts file: %s ", err)
+        log.Fatalf("Failed reading secrets file: %s ", err)
+        return err
     }
     err = yaml.Unmarshal(yamlFile, c)
     if err != nil {
@@ -1299,13 +1300,42 @@ type RetrieveSale struct {
     Id                      uint64      `json:"id"`
     //Metadata              RetrieveSaleMetadata   `json:"meta"`
     //Product               RetrieveSaleProduct   `json:"product"`
-    //Coupon                RetrieveSaleCoupon   `json:"coupon"`
+    Coupon                  RetrieveSaleCoupon   `json:"coupon"`
     //Transactions          RetrieveSaleTransactions   `json:"transactions"`
     User                    ListUsersUser   `json:"user"`
     //Enrollments             []ListEnrollmentsEnrollment   `json:"enrollments"`
 }
 
 type _RetrieveSale RetrieveSale
+
+type RetrieveSaleCoupon struct {
+    CreatedAt             string      `json:"created_at"`
+    ScopeName             string      `json:"scope_name"`
+    PricingPlanSpecific   bool        `json:"pricing_plan_specific"`
+    NewPurchasePrice      uint64      `json:"new_purchase_price"`
+    FormattedDiscount     string      `json:"formatted_discount"`
+    FormattedPrice        string      `json:"formatted_price"`
+    CalculatedDiscount    uint64      `json:"calculated_discount"`
+    Currency              string      `json:"currency"`
+    DiscountPercent       float32     `json:"discount_percent"`
+    //DiscountAmount        uint64      `json:"discount_amount"`
+    NumberAvailable       uint64      `json:"number_available"`
+    Code                  string      `json:"code"`
+    Name                  string      `json:"name"`
+    ExpirationDate        string      `json:"expiration_date"`
+    ProductId             uint64      `json:"product_id"`
+    IsPublished           bool        `json:"is_published"`
+    DurationKind          string      `json:"duration_kind"`
+    NumberOfUses          uint64      `json:"number_of_uses"`
+    //ClassPeriodId         uint64      `json:"class_period_id"`
+    SiteWide              bool        `json:"site_wide"`
+    Id                    uint64      `json:"id"`
+    //Metadata              RetrieveSaleCouponMetadata  `json:"meta"`
+    //Product               RetrieveSaleProduct     `json:"product"`
+    //CreatorProduct        ???     `json:"creator_product"`
+    //ProductCollection     ???     `json:"product_collection"`
+}
+
 
 //type RetrieveSaleMetadata ListUsersMetadata
 
