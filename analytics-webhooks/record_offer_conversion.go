@@ -103,6 +103,7 @@ func main() {
   }
 
   source, ok := m["source"]
+  firstSource, ok := m["firstSource"]
   notes, ok := m["notes"]
 
   currentTime := time.Now()
@@ -114,7 +115,7 @@ func main() {
     return
   }
   sheet, err := ss.SheetByIndex(0)
-  err = gsheetwrap.AddRowToSheet(sheet, []string{ts, key, category, name, path, source, ua, notes})
+  err = gsheetwrap.AddRowToSheet(sheet, []string{ts, key, category, name, path, firstSource, source, ua, notes})
   if err != nil {
 		HandleError("Error while adding row to spreadsheet. %v", err)
     return
